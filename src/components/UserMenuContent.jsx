@@ -590,7 +590,7 @@ export default function UserMenuContent({
                                     rel="noopener noreferrer"
                                     className="text-xs text-violet-400 hover:text-violet-300 hover:underline flex items-center justify-between group"
                                 >
-                                    <span>Get your {aiProvider === 'groq' ? 'Groq' : aiProvider === 'cerebras' ? 'Cerebras' : 'OpenRouter'} key &rarr;</span>
+                                    <span>Get your {aiProvider === 'groq' ? 'Groq' : aiProvider === 'cerebras' ? 'Cerebras' : aiProvider === 'mistral' ? 'Mistral' : 'OpenRouter'} key &rarr;</span>
                                     <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </a>
                             </div>
