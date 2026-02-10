@@ -146,6 +146,20 @@ export default function WatchlistCard({ item, onClick, onMoveToLibrary, onRemove
                         </button>
                     )}
                 </div>
+
+                {/* Watch Button */}
+                {(hasInfo || item.year) && (
+                    <a
+                        href={`https://hianime.to/search?keyword=${encodeURIComponent(item.title)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full bg-violet-600/10 hover:bg-violet-600 hover:text-white py-2.5 rounded-xl text-xs font-medium text-violet-300 transition-all border border-violet-500/20 hover:border-violet-500 mt-3"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <PlayCircle size={14} />
+                        <span>Watch Now</span>
+                    </a>
+                )}
             </div>
         </div>
     );

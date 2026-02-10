@@ -479,6 +479,9 @@ function App() {
             setShowScrollBottom(!nearBottom);
         };
 
+        window.addEventListener('scroll', handleScroll);
+        handleScroll(); // Initial check
+
         // Always show floating bar
         setShowFloatingBar(true);
 
