@@ -121,6 +121,12 @@ export default function DetailsModal({ isOpen, onClose, item, onAction, actionLa
                                             <Sparkles size={14} />
                                             <span>Why we picked this for you</span>
                                         </div>
+                                        {(item.model || item.provider) && (
+                                            <div className="text-[10px] text-violet-300/70 font-mono mb-2">
+                                                {item.provider ? `API: ${item.provider}` : 'API: —'}
+                                                {item.model ? ` · Model: ${item.model}` : ''}
+                                            </div>
+                                        )}
                                         <p className="text-sm text-gray-300 italic">
                                             "{item.reason}"
                                         </p>

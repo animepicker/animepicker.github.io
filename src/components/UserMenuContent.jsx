@@ -55,7 +55,7 @@ export default function UserMenuContent({
     onRestoreAll,
     onDeleteAllInstructions,
     onRestoreDefaults,
-    performanceSettings = { enableBlur: false, enhancedMotion: true },
+    performanceSettings = { enableBlur: false, enhancedMotion: false },
     onTogglePerformanceSetting,
     isGoogleSignedIn,
     isGoogleLoading,

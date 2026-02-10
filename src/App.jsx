@@ -152,7 +152,7 @@ function App() {
 
     const [performanceSettings, setPerformanceSettings] = useState(() => {
         const saved = localStorage.getItem('performance_settings');
-        return saved ? JSON.parse(saved) : { enableBlur: false, enhancedMotion: true };
+        return saved ? JSON.parse(saved) : { enableBlur: false, enhancedMotion: false };
     });
 
     useEffect(() => {
@@ -1611,12 +1611,18 @@ function App() {
                 selectedModel
             );
 
+            const dataWithMeta = data.map(item => ({
+                ...item,
+                model: selectedModel,
+                provider: aiProvider
+            }));
+
             // Filter out any recommendations that are already in library, watchlist, or recommendations
             const libraryTitlesLower = library.map(a => (a.title || a).toLowerCase().trim());
             const watchlistTitlesLower = watchlist.map(a => (a.title || a).toLowerCase().trim());
             const recommendationsTitlesLower = recommendations.map(a => (a.title || a).toLowerCase().trim());
 
-            const filteredData = data.filter(rec => {
+            const filteredData = dataWithMeta.filter(rec => {
                 const recTitle = rec.title?.toLowerCase().trim();
                 return !libraryTitlesLower.includes(recTitle) &&
                     !watchlistTitlesLower.includes(recTitle) &&
@@ -2708,9 +2714,6 @@ function App() {
                             variants={modalVariants}
                             className="relative bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 shadow-2xl w-full max-w-sm overflow-hidden"
                         >
-                            <div className="p-3 w-12 h-12 rounded-xl bg-red-500/10 text-red-500 mb-4">
-                                <Trash2 size={24} />
-                            </div>
                             <h3 className="text-xl font-bold text-white mb-2">Clear All Data?</h3>
                             <p className="text-gray-400 mb-6 text-sm leading-relaxed">
                                 This will permanently remove your <span className="text-white font-medium">Library</span>, <span className="text-white font-medium">Watchlist</span>, and <span className="text-white font-medium">Picks</span>. Your account will remain active.
