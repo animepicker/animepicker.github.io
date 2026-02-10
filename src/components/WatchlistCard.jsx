@@ -1,7 +1,7 @@
 // Fix missing imports if any
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, LayoutGrid, X, Calendar, Tag, Sparkles, RefreshCw, EyeOff } from 'lucide-react';
+import { Heart, LayoutGrid, X, Calendar, Tag, Sparkles, RefreshCw, EyeOff, PlayCircle } from 'lucide-react';
 import { getAnimeImage } from '../services/jikanService';
 import { formatTags } from '../utils/tagUtils';
 
