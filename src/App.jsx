@@ -2615,35 +2615,33 @@ function App() {
                                 <div className="p-2.5 rounded-xl bg-red-500/10 text-red-500">
                                     <Trash2 size={24} />
                                 </div>
-                                <h3 className="text-xl font-bold text-white">Clear Recommendations?</h3>
+                                <h3 className="text-xl font-bold text-white">Clear picks?</h3>
                             </div>
 
-                            <p className="text-gray-400 mb-6 text-sm leading-relaxed">
-                                Choose how you want to clean up your picks. Selective clearing only removes items already in your library/watchlist.
+                            <p className="text-gray-400 mb-4 text-sm">
+                                Clear added removes picks already saved.
                             </p>
 
                             <div className="space-y-3">
                                 <button
                                     onClick={() => confirmClear('added')}
-                                    className="w-full px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all text-sm font-bold flex items-center justify-center gap-2 group"
+                                    className="w-full px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all text-sm font-bold"
                                 >
-                                    <Check size={18} className="text-green-500 group-hover:scale-110 transition-transform" />
-                                    Clear Only Added Items
+                                    Clear added
                                 </button>
 
                                 <button
                                     onClick={() => confirmClear('all')}
-                                    className="w-full px-4 py-3 rounded-xl bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/20 hover:border-red-500 transition-all text-sm font-bold flex items-center justify-center gap-2 group shadow-lg shadow-red-500/5"
+                                    className="w-full px-4 py-3 rounded-xl bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/20 hover:border-red-500 transition-all text-sm font-bold shadow-lg shadow-red-500/5"
                                 >
-                                    <Trash2 size={18} className="group-hover:scale-110 transition-transform" />
-                                    Clear All Picks
+                                    Clear all
                                 </button>
 
                                 <button
                                     onClick={() => setShowClearConfirm(false)}
                                     className="w-full px-4 py-2 text-gray-400 hover:text-white transition-colors text-xs font-medium"
                                 >
-                                    Keep Everything
+                                    Cancel
                                 </button>
                             </div>
                         </motion.div>
@@ -3036,5 +3034,3 @@ function App() {
 }
 
 export default App;
-
-
