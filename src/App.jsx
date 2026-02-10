@@ -364,11 +364,11 @@ function App() {
                 clearTimeout(autoSyncTimerRef.current);
             }
 
-            // Set new timer for 5 seconds
+            // Set new timer for 3 seconds
             autoSyncTimerRef.current = setTimeout(() => {
                 console.log("Auto-syncing to Google Drive...");
                 handleCloudUpload(false);
-            }, 5000);
+            }, 3000);
         }
 
         return () => {
@@ -649,6 +649,7 @@ function App() {
             const now = new Date().toLocaleString();
             setLastCloudSync(now);
             localStorage.setItem(`${username}_last_cloud_sync`, now);
+            hasAutoSynced.current = true; // Set gatekeeper after successful sync
             if (showToast) {
                 toast.success("Synced with Google Drive");
             }
