@@ -173,7 +173,7 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
     );
 });
 
-export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGenerateAllInfo, onImport, loadingItems, searchQuery, onSearchChange, onUpdateNote, onModalStateChange, onMoveToWatchlist, onExclude, enhancedMotion }) {
+export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGenerateAllInfo, onImport, loadingItems, searchQuery, onSearchChange, onUpdateNote, onModalStateChange, onMoveToWatchlist, onMoveToLibrary, onExclude, enhancedMotion, isInWatchlist }) {
     const [expandedItems, setExpandedItems] = useState({});
     const [showDropdown, setShowDropdown] = useState(false);
     const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -192,6 +192,20 @@ export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGe
     const manageDropdownRef = useRef(null);
     const fileInputRef = useRef(null);
     const loadMoreRef = useRef(null);
+
+    // Sync modal state with parent
+    useEffect(() => {
+        if (onModalStateChange) {
+            onModalStateChange(isDetailsModalOpen);
+        }
+        // Cleanup ensures that if this component unmounts while modal is open (e.g. list becomes empty),
+        // we notify the parent that the modal is effectively closed so floating buttons reappear.
+        return () => {
+            if (onModalStateChange) {
+                onModalStateChange(false);
+            }
+        };
+    }, [isDetailsModalOpen, onModalStateChange]);
 
     // Close dropdowns when clicking outside
     useEffect(() => {
@@ -365,187 +379,193 @@ export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGe
     const handleModalOpen = (animeData, img) => {
         setSelectedAnime({ ...animeData, image: img || animeData.image });
         setIsDetailsModalOpen(true);
-        if (onModalStateChange) onModalStateChange(true);
     };
 
     const handleModalClose = () => {
         setIsDetailsModalOpen(false);
-        if (onModalStateChange) onModalStateChange(false);
     };
 
-    if (!library || library.length === 0) {
-        return (
-            <div className="text-center py-20 px-6">
-                <div className="bg-white/5 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
-                    <LayoutGrid size={32} className="text-violet-500/50" />
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-2">Your Library is Empty</h3>
-                <p className="text-gray-400 max-w-md mx-auto mb-8">
-                    Items you add to your library will appear here. You can also import your existing data.
-                </p>
-                <button
-                    onClick={onImport}
-                    className="flex items-center gap-2 mx-auto bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-xl font-medium transition-all"
-                >
-                    <Upload size={18} />
-                    <span>Import Data</span>
-                </button>
-            </div>
-        );
-    }
+    if (!library) return null;
 
     return (
-        <div className="w-full max-w-6xl mx-auto mt-8 mb-8 px-4">
-            {/* Header Area */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <h2 className="text-2xl font-bold text-white tracking-tight">
-                    Your Library
-                </h2>
-                {/* Search Bar with Sort */}
-                <div className="flex gap-2 w-full sm:max-w-md">
-                    <div className="relative flex-1">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
-                            <Search size={16} />
-                        </div>
-                        <input
-                            type="text"
-                            placeholder="Search library..."
-                            value={searchQuery}
-                            onChange={(e) => onSearchChange(e.target.value)}
-                            className="w-full bg-[#12121f] border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-gray-200 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 transition-all placeholder:text-gray-600"
-                        />
-                        {searchQuery && (
-                            <button
-                                onClick={() => onSearchChange('')}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
-                            >
-                                <X size={14} />
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="relative shrink-0" ref={sortDropdownRef}>
-                        <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => setShowSortDropdown(!showSortDropdown)}
-                            className="flex items-center justify-center w-10 h-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-gray-300 hover:text-white rounded-xl transition-colors"
-                            title={`Sort by ${getSortLabel()}`}
-                        >
-                            <ArrowUpDown size={18} />
-                        </motion.button>
-
-                        <AnimatePresence>
-                            {showSortDropdown && (
-                                <motion.div
-                                    key="sort-dropdown"
-                                    initial={enhancedMotion ? { opacity: 0, scale: 0.95, y: -10 } : { opacity: 0 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={enhancedMotion ? { opacity: 0, scale: 0.95, y: -10 } : { opacity: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="absolute right-0 top-full mt-1 bg-[#1a1a2e] border border-white/20 rounded-lg shadow-xl overflow-hidden z-20 min-w-[150px]"
-                                >
-                                    <button
-                                        onClick={() => handleSort('added')}
-                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors flex items-center justify-between ${sortConfig.key === 'added' ? 'text-violet-400' : 'text-gray-300'}`}
-                                    >
-                                        <span>Date Added</span>
-                                        {sortConfig.key === 'added' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
-                                    </button>
-                                    <button
-                                        onClick={() => handleSort('name')}
-                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors flex items-center justify-between ${sortConfig.key === 'name' ? 'text-violet-400' : 'text-gray-300'}`}
-                                    >
-                                        <span>Name</span>
-                                        {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
-                                    </button>
-                                    <button
-                                        onClick={() => handleSort('year')}
-                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors flex items-center justify-between ${sortConfig.key === 'year' ? 'text-violet-400' : 'text-gray-300'}`}
-                                    >
-                                        <span>Year</span>
-                                        {sortConfig.key === 'year' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
-                                    </button>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                </div>
-            </div>
-
-            {/* Confirmation Modal */}
-            {showConfirmModal && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-                    <div className="bg-[#1a1a2e] border border-white/10 rounded-xl p-6 max-w-sm mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-                        <h3 className="text-lg font-semibold text-white mb-2">Confirm Action</h3>
-                        <p className="text-gray-400 text-sm mb-6">{getConfirmMessage()}</p>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setShowConfirmModal(false)}
-                                className="flex-1 px-4 py-2 text-sm text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleConfirm}
-                                className="flex-1 px-4 py-2 text-sm text-white bg-violet-600 hover:bg-violet-500 rounded-lg transition-colors"
-                            >
-                                Confirm
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Details Modal */}
+        <>
+            {/* Details Modal - Rendered before conditional empty return to ensure persistence during moves */}
             <DetailsModal
                 isOpen={isDetailsModalOpen}
                 onClose={handleModalClose}
                 item={selectedAnime}
-                onAction={selectedAnime ? () => onRemove(selectedAnime.id, selectedAnime.title) : undefined}
-                actionLabel="Remove"
-                actionIcon={<X size={18} />}
+                onAction={selectedAnime ? () => {
+                    if (isInWatchlist(selectedAnime.title)) {
+                        onMoveToLibrary(selectedAnime, false);
+                    } else {
+                        onMoveToWatchlist(selectedAnime, false);
+                    }
+                } : undefined}
+                actionLabel={selectedAnime && isInWatchlist(selectedAnime.title) ? "Undo Move" : "Move to Watchlist"}
+                actionIcon={selectedAnime && isInWatchlist(selectedAnime.title) ? <RefreshCw size={18} /> : <Heart size={18} />}
                 onUpdateNote={onUpdateNote}
                 enhancedMotion={enhancedMotion}
                 showNotes={true}
             />
 
-            <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 ${window.innerWidth <= 768 ? 'grid-optimization' : ''}`}>
-                {visibleItems.map((anime) => {
-                    const animeData = typeof anime === 'string'
-                        ? { title: anime, genres: [], description: '' }
-                        : anime;
-
-                    const isLoading = Array.isArray(loadingItems) && loadingItems.includes(animeData.title);
-                    const hasInfo = animeData.genres && animeData.genres.length > 0;
-                    const isExpanded = expandedItems[animeData.title];
-
-                    return (
-                        <AnimeCard
-                            key={animeData.id || animeData.title}
-                            animeData={animeData}
-                            isLoading={isLoading}
-                            hasInfo={hasInfo}
-                            isExpanded={expandedItems[animeData.title]}
-                            onToggleExpand={() => toggleExpand(animeData.title)}
-                            onGenerateInfo={onGenerateInfo}
-                            onRemove={onRemove}
-                            onClick={(img) => handleModalOpen(animeData, img)}
-                            onMoveToWatchlist={onMoveToWatchlist}
-                            onExclude={onExclude}
-                        />
-                    );
-                })}
-            </div>
-
-            {/* Load more trigger */}
-            {hasMore && (
-                <div ref={loadMoreRef} className="flex justify-center py-8">
-                    <div className="text-gray-500 text-sm">
-                        Showing {visibleCount} of {library.length} • Scroll for more
+            {library.length === 0 ? (
+                <div className="text-center py-20 px-6">
+                    <div className="bg-white/5 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+                        <LayoutGrid size={32} className="text-violet-500/50" />
                     </div>
+                    <h3 className="text-2xl font-bold text-white mb-2">Your Library is Empty</h3>
+                    <p className="text-gray-400 max-w-md mx-auto mb-8">
+                        Items you add to your library will appear here. You can also import your existing data.
+                    </p>
+                    <button
+                        onClick={onImport}
+                        className="flex items-center gap-2 mx-auto bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-xl font-medium transition-all"
+                    >
+                        <Upload size={18} />
+                        <span>Import Data</span>
+                    </button>
+                </div>
+            ) : (
+                <div className="w-full max-w-6xl mx-auto mt-8 mb-8 px-4">
+                    {/* Header Area */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <h2 className="text-2xl font-bold text-white tracking-tight">
+                            Your Library
+                        </h2>
+                        {/* Search Bar with Sort */}
+                        <div className="flex gap-2 w-full sm:max-w-md">
+                            <div className="relative flex-1">
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
+                                    <Search size={16} />
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Search library..."
+                                    value={searchQuery}
+                                    onChange={(e) => onSearchChange(e.target.value)}
+                                    className="w-full bg-[#12121f] border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-gray-200 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 transition-all placeholder:text-gray-600"
+                                />
+                                {searchQuery && (
+                                    <button
+                                        onClick={() => onSearchChange('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="relative shrink-0" ref={sortDropdownRef}>
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => setShowSortDropdown(!showSortDropdown)}
+                                    className="flex items-center justify-center w-10 h-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-gray-300 hover:text-white rounded-xl transition-colors"
+                                    title={`Sort by ${getSortLabel()}`}
+                                >
+                                    <ArrowUpDown size={18} />
+                                </motion.button>
+
+                                <AnimatePresence>
+                                    {showSortDropdown && (
+                                        <motion.div
+                                            key="sort-dropdown"
+                                            initial={enhancedMotion ? { opacity: 0, scale: 0.95, y: -10 } : { opacity: 0 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={enhancedMotion ? { opacity: 0, scale: 0.95, y: -10 } : { opacity: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="absolute right-0 top-full mt-1 bg-[#1a1a2e] border border-white/20 rounded-lg shadow-xl overflow-hidden z-20 min-w-[150px]"
+                                        >
+                                            <button
+                                                onClick={() => handleSort('added')}
+                                                className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors flex items-center justify-between ${sortConfig.key === 'added' ? 'text-violet-400' : 'text-gray-300'}`}
+                                            >
+                                                <span>Date Added</span>
+                                                {sortConfig.key === 'added' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                                            </button>
+                                            <button
+                                                onClick={() => handleSort('name')}
+                                                className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors flex items-center justify-between ${sortConfig.key === 'name' ? 'text-violet-400' : 'text-gray-300'}`}
+                                            >
+                                                <span>Name</span>
+                                                {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                                            </button>
+                                            <button
+                                                onClick={() => handleSort('year')}
+                                                className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors flex items-center justify-between ${sortConfig.key === 'year' ? 'text-violet-400' : 'text-gray-300'}`}
+                                            >
+                                                <span>Year</span>
+                                                {sortConfig.key === 'year' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                                            </button>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Confirmation Modal */}
+                    {showConfirmModal && (
+                        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+                            <div className="bg-[#1a1a2e] border border-white/10 rounded-xl p-6 max-w-sm mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                                <h3 className="text-lg font-semibold text-white mb-2">Confirm Action</h3>
+                                <p className="text-gray-400 text-sm mb-6">{getConfirmMessage()}</p>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowConfirmModal(false)}
+                                        className="flex-1 px-4 py-2 text-sm text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleConfirm}
+                                        className="flex-1 px-4 py-2 text-sm text-white bg-violet-600 hover:bg-violet-500 rounded-lg transition-colors"
+                                    >
+                                        Confirm
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 ${window.innerWidth <= 768 ? 'grid-optimization' : ''}`}>
+                        {visibleItems.map((anime) => {
+                            const animeData = typeof anime === 'string'
+                                ? { title: anime, genres: [], description: '' }
+                                : anime;
+
+                            const isLoading = Array.isArray(loadingItems) && loadingItems.includes(animeData.title);
+                            const hasInfo = animeData.genres && animeData.genres.length > 0;
+                            const isExpanded = expandedItems[animeData.title];
+
+                            return (
+                                <AnimeCard
+                                    key={animeData.id || animeData.title}
+                                    animeData={animeData}
+                                    isLoading={isLoading}
+                                    hasInfo={hasInfo}
+                                    isExpanded={expandedItems[animeData.title]}
+                                    onToggleExpand={() => toggleExpand(animeData.title)}
+                                    onGenerateInfo={onGenerateInfo}
+                                    onRemove={onRemove}
+                                    onClick={(img) => handleModalOpen(animeData, img)}
+                                    onMoveToWatchlist={onMoveToWatchlist}
+                                    onExclude={onExclude}
+                                />
+                            );
+                        })}
+                    </div>
+
+                    {/* Load more trigger */}
+                    {hasMore && (
+                        <div ref={loadMoreRef} className="flex justify-center py-8">
+                            <div className="text-gray-500 text-sm">
+                                Showing {visibleCount} of {library.length} • Scroll for more
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
-        </div>
+        </>
     );
 }

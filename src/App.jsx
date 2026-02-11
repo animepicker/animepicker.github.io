@@ -1729,6 +1729,13 @@ function App() {
                 action: {
                     label: 'Undo',
                     onClick: () => {
+                        // Find LATEST version in watchlist (it might have new notes)
+                        const currentWatchlist = watchlistRef.current;
+                        const latestItem = currentWatchlist.find(w =>
+                            (item.id && w.id == item.id) ||
+                            (w.title || w).toLowerCase().trim() === normalizedTitle
+                        ) || item;
+
                         setWatchlist(prev => {
                             const newList = prev.filter(w => {
                                 if (item.id && w.id == item.id) return false;
@@ -1740,7 +1747,7 @@ function App() {
                         });
                         markLocalChange('watchlist');
                         setLibrary(prev => {
-                            const newList = [...prev, item];
+                            const newList = [...prev, latestItem];
                             libraryRef.current = newList;
                             return newList;
                         });
@@ -1786,6 +1793,13 @@ function App() {
                 action: {
                     label: 'Undo',
                     onClick: () => {
+                        // Find LATEST version in library
+                        const currentLibrary = libraryRef.current;
+                        const latestItem = currentLibrary.find(w =>
+                            (item.id && w.id == item.id) ||
+                            (w.title || w).toLowerCase().trim() === normalizedTitle
+                        ) || item;
+
                         // Remove from library
                         setLibrary(prev => {
                             const newList = prev.filter(w => {
@@ -1797,9 +1811,9 @@ function App() {
                             return newList;
                         });
                         markLocalChange('library');
-                        // Restore to watchlist (with full metadata)
+                        // Restore to watchlist (with latest metadata)
                         setWatchlist(prev => {
-                            const newList = [...prev, item];
+                            const newList = [...prev, latestItem];
                             watchlistRef.current = newList;
                             return newList;
                         });
@@ -2009,7 +2023,8 @@ function App() {
         toast.success("All your data has been cleared.");
     };
 
-    const updateLibraryNote = useCallback((id, note) => {
+    const updateItemNote = useCallback((id, note) => {
+        // Update in Library
         setLibrary((prev) => {
             const newList = prev.map((item) => {
                 if (item.id === id || item.id == id) {
@@ -2017,12 +2032,11 @@ function App() {
                 }
                 return item;
             });
-            libraryRef.current = newList; // Update Ref
+            libraryRef.current = newList;
             return newList;
         });
-    }, []);
 
-    const updateWatchlistNote = useCallback((id, note) => {
+        // Update in Watchlist
         setWatchlist((prev) => {
             const newList = prev.map((item) => {
                 if (item.id === id || item.id == id) {
@@ -2030,10 +2044,32 @@ function App() {
                 }
                 return item;
             });
-            watchlistRef.current = newList; // Update Ref
+            watchlistRef.current = newList;
             return newList;
         });
     }, []);
+
+    // Keep old ones as aliases for now to avoid breaking other components if they use them directly
+    const updateLibraryNote = updateItemNote;
+    const updateWatchlistNote = updateItemNote;
+
+    const isInLibrary = useCallback((title) => {
+        if (!title || !library) return false;
+        const normalizedTitle = title.toLowerCase().trim();
+        return library.some((item) => {
+            const itemTitle = typeof item === 'string' ? item : item?.title;
+            return itemTitle?.toLowerCase().trim() === normalizedTitle;
+        });
+    }, [library]);
+
+    const isInWatchlist = useCallback((title) => {
+        if (!title || !watchlist) return false;
+        const normalizedTitle = title.toLowerCase().trim();
+        return watchlist.some((item) => {
+            const itemTitle = typeof item === 'string' ? item : item?.title;
+            return itemTitle?.toLowerCase().trim() === normalizedTitle;
+        });
+    }, [watchlist]);
 
     const formatCount = (count) => {
         if (!count) return '';
@@ -2575,6 +2611,8 @@ function App() {
                                                 enhancedMotion={performanceSettings.enhancedMotion}
                                                 searchQuery={recommendationsSearchQuery}
                                                 onSearchChange={setRecommendationsSearchQuery}
+                                                isInLibrary={isInLibrary}
+                                                isInWatchlist={isInWatchlist}
                                             />
                                         )}
                                     </motion.div>
@@ -2595,7 +2633,9 @@ function App() {
                                             onRemove={requestRemoveFromWatchlist}
                                             onMoveToLibrary={moveToLibrary}
                                             onMoveToWatchlist={moveToWatchlist}
-                                            onUpdateNote={updateWatchlistNote}
+                                            onUpdateNote={updateItemNote}
+                                            isInLibrary={isInLibrary}
+                                            isInWatchlist={isInWatchlist}
                                             onImport={() => importFileRef.current.click()}
                                             onModalStateChange={setIsModalOpen}
                                             loadingItems={loadingItems}
@@ -2626,9 +2666,12 @@ function App() {
                                             loadingItems={loadingItems}
                                             searchQuery={searchQuery}
                                             onSearchChange={setSearchQuery}
-                                            onUpdateNote={updateLibraryNote}
+                                            onUpdateNote={updateItemNote}
+                                            isInLibrary={isInLibrary}
+                                            isInWatchlist={isInWatchlist}
                                             onModalStateChange={setIsModalOpen}
                                             onMoveToWatchlist={moveToWatchlist}
+                                            onMoveToLibrary={moveToLibrary}
                                             onExclude={openExcludeModal}
                                             enhancedMotion={performanceSettings.enhancedMotion}
                                         />

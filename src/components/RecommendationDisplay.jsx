@@ -223,7 +223,9 @@ export default function RecommendationDisplay({
     onExclude,
     enhancedMotion,
     searchQuery,
-    onSearchChange
+    onSearchChange,
+    isInLibrary,
+    isInWatchlist
 }) {
     const [sortConfig, setSortConfig] = useState({ key: 'added', direction: 'asc' });
     const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -235,6 +237,20 @@ export default function RecommendationDisplay({
 
     const dropdownRef = useRef(null);
     const loadMoreRef = useRef(null);
+
+    // Sync modal state with parent
+    useEffect(() => {
+        if (onModalStateChange) {
+            onModalStateChange(isDetailsModalOpen);
+        }
+        // Cleanup ensures that if this component unmounts while modal is open (e.g. list becomes empty),
+        // we notify the parent that the modal is effectively closed so floating buttons reappear.
+        return () => {
+            if (onModalStateChange) {
+                onModalStateChange(false);
+            }
+        };
+    }, [isDetailsModalOpen, onModalStateChange]);
 
     // Intersection observer for infinite scroll
     useEffect(() => {
@@ -253,29 +269,6 @@ export default function RecommendationDisplay({
 
         return () => observer.disconnect();
     }, [recommendations.length, visibleCount]);
-
-    // Handle empty/invalid recommendations
-    if (!recommendations || !Array.isArray(recommendations) || recommendations.length === 0) return null;
-
-    // Helper to check if item is in library
-    const isInLibrary = useCallback((title) => {
-        if (!title || !library) return false;
-        const normalizedTitle = title.toLowerCase().trim();
-        return library?.some((item) => {
-            const itemTitle = typeof item === 'string' ? item : item?.title;
-            return itemTitle?.toLowerCase().trim() === normalizedTitle;
-        });
-    }, [library]);
-
-    // Helper to check if item is in watchlist
-    const isInWatchlist = useCallback((title) => {
-        if (!title || !watchlist) return false;
-        const normalizedTitle = title.toLowerCase().trim();
-        return watchlist?.some((item) => {
-            const itemTitle = typeof item === 'string' ? item : item?.title;
-            return itemTitle?.toLowerCase().trim() === normalizedTitle;
-        });
-    }, [watchlist]);
 
     // Close dropdown on outside click
     useEffect(() => {
@@ -297,7 +290,7 @@ export default function RecommendationDisplay({
     };
 
     const sortedRecommendations = useMemo(() => {
-        let filtered = [...recommendations];
+        let filtered = recommendations ? [...recommendations] : [];
 
         if (searchQuery) {
             const query = searchQuery.toLowerCase().trim();
@@ -329,7 +322,7 @@ export default function RecommendationDisplay({
         }
 
         return withIndex;
-    }, [recommendations, sortConfig]);
+    }, [recommendations, sortConfig, searchQuery]);
 
     const getSortLabel = () => {
         if (sortConfig.key === 'added') return 'Date Added';
@@ -338,104 +331,16 @@ export default function RecommendationDisplay({
         return 'Sort';
     };
 
+    if (!recommendations || !Array.isArray(recommendations)) return null;
+
     return (
-        <div className="w-full max-w-6xl mx-auto mt-12 mb-20 px-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
-                    Picked For You <span className="text-pink-500">✨</span>
-                </h2>
-
-                <div className="flex items-center gap-2 w-full sm:max-w-md">
-                    {/* Search Bar */}
-                    <div className="relative flex-1">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
-                            <Search size={16} />
-                        </div>
-                        <input
-                            type="text"
-                            placeholder="Search picks..."
-                            value={searchQuery}
-                            onChange={(e) => onSearchChange(e.target.value)}
-                            className="w-full bg-[#12121f] border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-gray-200 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 transition-all placeholder:text-gray-600"
-                        />
-                        {searchQuery && (
-                            <button
-                                onClick={() => onSearchChange('')}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
-                            >
-                                <X size={14} />
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Clear Button */}
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={onClear}
-                        className="flex-shrink-0 flex items-center justify-center w-10 h-10 bg-white/5 hover:bg-red-500/20 border border-white/10 hover:border-red-500/30 text-gray-400 hover:text-red-400 rounded-xl transition-colors"
-                        title="Clear Recommendations"
-                    >
-                        <Trash2 size={18} />
-                    </motion.button>
-
-                    <div className="relative shrink-0" ref={dropdownRef}>
-                        <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => setShowSortDropdown(!showSortDropdown)}
-                            className="flex items-center justify-center w-10 h-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-gray-300 hover:text-white rounded-xl transition-colors"
-                            title={`Sort by ${getSortLabel()}`}
-                        >
-                            <ArrowUpDown size={18} />
-                        </motion.button>
-
-                        <AnimatePresence>
-                            {showSortDropdown && (
-                                <motion.div
-                                    key="sort-dropdown"
-                                    initial={enhancedMotion ? { opacity: 0, scale: 0.95, y: -10 } : { opacity: 0 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={enhancedMotion ? { opacity: 0, scale: 0.95, y: -10 } : { opacity: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="absolute right-0 top-full mt-1 bg-[#1a1a2e] border border-white/20 rounded-lg shadow-xl overflow-hidden z-20 min-w-[150px]"
-                                >
-                                    <button
-                                        onClick={() => handleSort('added')}
-                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors flex items-center justify-between ${sortConfig.key === 'added' ? 'text-violet-400' : 'text-gray-300'}`}
-                                    >
-                                        <span>Date Added</span>
-                                        {sortConfig.key === 'added' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
-                                    </button>
-                                    <button
-                                        onClick={() => handleSort('name')}
-                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors flex items-center justify-between ${sortConfig.key === 'name' ? 'text-violet-400' : 'text-gray-300'}`}
-                                    >
-                                        <span>Name</span>
-                                        {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
-                                    </button>
-                                    <button
-                                        onClick={() => handleSort('year')}
-                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors flex items-center justify-between ${sortConfig.key === 'year' ? 'text-violet-400' : 'text-gray-300'}`}
-                                    >
-                                        <span>Year</span>
-                                        {sortConfig.key === 'year' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
-                                    </button>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div >
-                </div>
-            </div >
-
-            {/* Details Modal */}
-            < DetailsModal
+        <>
+            {/* Details Modal - Rendered before conditional empty return to ensure persistence during moves */}
+            <DetailsModal
                 isOpen={isDetailsModalOpen}
                 onClose={() => {
                     setIsDetailsModalOpen(false);
-                    if (onModalStateChange) onModalStateChange(false);
-                }
-                }
+                }}
                 item={selectedRec}
                 onAction={selectedRec ? () => {
                     const inWatchlist = isInWatchlist(selectedRec.title);
@@ -452,42 +357,145 @@ export default function RecommendationDisplay({
                 showNotes={false}
             />
 
-            <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 ${window.innerWidth <= 768 ? 'grid-optimization' : ''}`}>
-                <AnimatePresence>
-                    {sortedRecommendations.slice(0, visibleCount).map((rec, index) => {
-                        // Skip invalid recommendations
-                        if (!rec || !rec.title) return null;
+            {recommendations.length === 0 ? (
+                <div className="w-full max-w-6xl mx-auto mt-12 mb-20 px-4">
+                    <div className="text-center py-20 px-6 bg-white/5 rounded-3xl border border-white/5">
+                        <div className="bg-white/5 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+                            <Sparkles size={32} className="text-pink-500/50" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-white mb-2">No Recommendations Yet</h3>
+                        <p className="text-gray-400 max-w-md mx-auto">
+                            Generate some picks to see them here!
+                        </p>
+                    </div>
+                </div>
+            ) : (
+                <div className="w-full max-w-6xl mx-auto mt-12 mb-20 px-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
+                            Picked For You <span className="text-pink-500">✨</span>
+                        </h2>
 
-                        return (
-                            <RecommendationCard
-                                key={rec.id || rec.title || index}
-                                rec={rec}
-                                index={index}
-                                onWatched={onWatched}
-                                onRemove={onRemove}
-                                onRemovePick={onRemovePick}
-                                isInLibrary={isInLibrary}
-                                isInWatchlist={isInWatchlist}
-                                onAddToWatchlist={onAddToWatchlist}
-                                onRemoveFromWatchlist={onRemoveFromWatchlist}
-                                onClick={(img) => {
-                                    setSelectedRec({ ...rec, image: img || rec.image });
-                                    setIsDetailsModalOpen(true);
-                                    if (onModalStateChange) onModalStateChange(true);
-                                }}
-                                onExclude={onExclude}
-                            />
-                        );
-                    })}
-                </AnimatePresence>
-            </div>
+                        <div className="flex items-center gap-2 w-full sm:max-w-md">
+                            {/* Search Bar */}
+                            <div className="relative flex-1">
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
+                                    <Search size={16} />
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Search picks..."
+                                    value={searchQuery}
+                                    onChange={(e) => onSearchChange(e.target.value)}
+                                    className="w-full bg-[#12121f] border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-gray-200 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 transition-all placeholder:text-gray-600"
+                                />
+                                {searchQuery && (
+                                    <button
+                                        onClick={() => onSearchChange('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
 
-            {/* Intersection observer target */}
-            {visibleCount < recommendations.length && (
-                <div ref={loadMoreRef} className="h-20 flex items-center justify-center mt-8">
-                    <div className="w-6 h-6 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+                            {/* Clear Button */}
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={onClear}
+                                className="flex-shrink-0 flex items-center justify-center w-10 h-10 bg-white/5 hover:bg-red-500/20 border border-white/10 hover:border-red-500/30 text-gray-400 hover:text-red-400 rounded-xl transition-colors"
+                                title="Clear Recommendations"
+                            >
+                                <Trash2 size={18} />
+                            </motion.button>
+
+                            <div className="relative shrink-0" ref={dropdownRef}>
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => setShowSortDropdown(!showSortDropdown)}
+                                    className="flex items-center justify-center w-10 h-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-gray-300 hover:text-white rounded-xl transition-colors"
+                                    title={`Sort by ${getSortLabel()}`}
+                                >
+                                    <ArrowUpDown size={18} />
+                                </motion.button>
+
+                                <AnimatePresence>
+                                    {showSortDropdown && (
+                                        <motion.div
+                                            key="sort-dropdown"
+                                            initial={enhancedMotion ? { opacity: 0, scale: 0.95, y: -10 } : { opacity: 0 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={enhancedMotion ? { opacity: 0, scale: 0.95, y: -10 } : { opacity: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="absolute right-0 top-full mt-1 bg-[#1a1a2e] border border-white/20 rounded-lg shadow-xl overflow-hidden z-20 min-w-[150px]"
+                                        >
+                                            <button
+                                                onClick={() => handleSort('added')}
+                                                className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors flex items-center justify-between ${sortConfig.key === 'added' ? 'text-violet-400' : 'text-gray-300'}`}
+                                            >
+                                                <span>Date Added</span>
+                                                {sortConfig.key === 'added' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                                            </button>
+                                            <button
+                                                onClick={() => handleSort('name')}
+                                                className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors flex items-center justify-between ${sortConfig.key === 'name' ? 'text-violet-400' : 'text-gray-300'}`}
+                                            >
+                                                <span>Name</span>
+                                                {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                                            </button>
+                                            <button
+                                                onClick={() => handleSort('year')}
+                                                className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors flex items-center justify-between ${sortConfig.key === 'year' ? 'text-violet-400' : 'text-gray-300'}`}
+                                            >
+                                                <span>Year</span>
+                                                {sortConfig.key === 'year' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                                            </button>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div >
+                        </div>
+                    </div >
+
+                    <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 ${window.innerWidth <= 768 ? 'grid-optimization' : ''}`}>
+                        <AnimatePresence>
+                            {sortedRecommendations.slice(0, visibleCount).map((rec, index) => {
+                                // Skip invalid recommendations
+                                if (!rec || !rec.title) return null;
+
+                                return (
+                                    <RecommendationCard
+                                        key={rec.id || rec.title || index}
+                                        rec={rec}
+                                        index={index}
+                                        onWatched={onWatched}
+                                        onRemove={onRemove}
+                                        onRemovePick={onRemovePick}
+                                        isInLibrary={isInLibrary}
+                                        isInWatchlist={isInWatchlist}
+                                        onAddToWatchlist={onAddToWatchlist}
+                                        onRemoveFromWatchlist={onRemoveFromWatchlist}
+                                        onClick={(img) => {
+                                            setSelectedRec({ ...rec, image: img || rec.image });
+                                            setIsDetailsModalOpen(true);
+                                        }}
+                                        onExclude={onExclude}
+                                    />
+                                );
+                            })}
+                        </AnimatePresence>
+                    </div>
+
+                    {/* Intersection observer target */}
+                    {visibleCount < recommendations.length && (
+                        <div ref={loadMoreRef} className="h-20 flex items-center justify-center mt-8">
+                            <div className="w-6 h-6 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+                        </div>
+                    )}
                 </div>
             )}
-        </div >
+        </>
     );
 }
