@@ -78,7 +78,7 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
                         <EyeOff size={14} />
                     </button>
                     <button
-                        onClick={() => onGenerateInfo(animeData.title)}
+                        onClick={() => onGenerateInfo(animeData)}
                         disabled={isLoading}
                         className="p-2 rounded-lg bg-black/60 hover:bg-violet-600 text-white transition-colors disabled:opacity-50"
                         title="Regenerate info"
@@ -144,7 +144,7 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onGenerateInfo(animeData.title, animeData.id);
+                                onGenerateInfo(animeData, animeData.id);
                             }}
                             disabled={isLoading}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs rounded-lg transition-colors shadow-lg shadow-violet-500/20"

@@ -971,7 +971,8 @@ function App() {
             return;
         }
 
-        const title = typeof originalTitle === 'string' ? originalTitle : originalTitle.title;
+        const isObject = typeof originalTitle === 'object' && originalTitle !== null;
+        const title = isObject ? originalTitle.title : originalTitle;
 
         // Filter instructions: only include those starting with [ALWAYS]
         const alwaysInstructions = customInstructions.filter(i =>
@@ -979,24 +980,22 @@ function App() {
         );
 
         // Don't set loading state for single item to avoid full screen loader
-        // But we can track it locally if needed
         setLoadingItems(prev => Array.isArray(prev) ? [...prev, title] : [title]);
 
         try {
             const data = await getAnimeInfo(title, getCurrentApiKey(), aiProvider, alwaysInstructions, selectedModel);
 
-            // Create the new item object
+            // Create the new item object, preserving existing metadata
             const newItem = {
-                id: (itemId || Date.now()).toString(),
+                ...(isObject ? originalTitle : {}), // Preserve ALL existing properties (notes, reasons, IDs, etc.)
+                id: (itemId || (isObject ? originalTitle.id : null) || Date.now()).toString(),
                 title: data.title || title,
                 genres: data.genres || [],
                 description: data.description || '',
                 averageScore: data.averageScore,
                 year: data.year,
-                bannerImage: data.bannerImage,
-                coverImage: data.coverImage,
-                // Keep existing note if it exists
-                note: (originalTitle && typeof originalTitle === 'object') ? originalTitle.note : ''
+                bannerImage: data.bannerImage || (isObject ? originalTitle.bannerImage : null),
+                coverImage: data.coverImage || (isObject ? originalTitle.coverImage : null),
             };
 
             if (targetList === 'watchlist') {
@@ -1009,7 +1008,7 @@ function App() {
                     if (exists) return prev;
 
                     const newList = prev.map(item => {
-                        if ((item.id && item.id === itemId) || (item.title || item) === title) {
+                        if ((item.id && (item.id === itemId || (isObject && item.id === originalTitle.id))) || (item.title || item) === title) {
                             return newItem;
                         }
                         return item;
@@ -1036,7 +1035,7 @@ function App() {
                         });
                     } else {
                         newList = prev.map(item => {
-                            if (((item.id || '').toString() === (itemId || '').toString()) || (item.title || item) === title) {
+                            if (((item.id || '').toString() === (itemId || (isObject ? originalTitle.id : '') || '').toString()) || (item.title || item) === title) {
                                 return newItem;
                             }
                             return item;
@@ -1472,9 +1471,14 @@ function App() {
                 // Helper to merge lists
                 const mergeLists = (current, incoming) => {
                     const currentMap = new Map(current.map(item => [item.title.toLowerCase(), item]));
+                    const excludedTitlesLower = excludedItems.map(a => (a.title || a).toLowerCase().trim());
+
                     incoming.forEach(item => {
                         if (item && item.title) {
-                            currentMap.set(item.title.toLowerCase(), item);
+                            const titleLower = item.title.toLowerCase().trim();
+                            if (!excludedTitlesLower.includes(titleLower)) {
+                                currentMap.set(titleLower, item);
+                            }
                         }
                     });
                     return Array.from(currentMap.values());
@@ -1870,12 +1874,14 @@ function App() {
             const libraryTitlesLower = library.map(a => (a.title || a).toLowerCase().trim());
             const watchlistTitlesLower = watchlist.map(a => (a.title || a).toLowerCase().trim());
             const recommendationsTitlesLower = recommendations.map(a => (a.title || a).toLowerCase().trim());
+            const excludedTitlesLower = excludedItems.map(a => (a.title || a).toLowerCase().trim());
 
             const filteredData = dataWithMeta.filter(rec => {
                 const recTitle = rec.title?.toLowerCase().trim();
                 return !libraryTitlesLower.includes(recTitle) &&
                     !watchlistTitlesLower.includes(recTitle) &&
-                    !recommendationsTitlesLower.includes(recTitle);
+                    !recommendationsTitlesLower.includes(recTitle) &&
+                    !excludedTitlesLower.includes(recTitle);
             });
 
             setRecommendations(prev => [...prev, ...filteredData]);
@@ -2419,9 +2425,9 @@ function App() {
                                 <span className={`relative z-10 overflow-hidden whitespace-nowrap ${performanceSettings.enhancedMotion ? 'transition-all duration-300 ease-in-out' : ''} ${activeTab === 'recommendations' ? 'max-w-[100px] opacity-100 ml-2' : 'max-w-0 opacity-0 ml-0 sm:max-w-[100px] sm:opacity-100 sm:ml-2'}`}>
                                     Picks
                                 </span>
-                                {recommendations.length > 0 && activeTab === 'recommendations' && (
+                                {filteredRecommendations.length > 0 && activeTab === 'recommendations' && (
                                     <span className={`relative z-10 bg-black/20 px-1.5 py-0.5 rounded-full text-xs ml-1.5`}>
-                                        {formatCount(recommendations.length)}
+                                        {formatCount(filteredRecommendations.length)}
                                     </span>
                                 )}
                             </button>
@@ -2448,9 +2454,9 @@ function App() {
                                 <span className={`relative z-10 overflow-hidden whitespace-nowrap ${performanceSettings.enhancedMotion ? 'transition-all duration-300 ease-in-out' : ''} ${activeTab === 'watchlist' ? 'max-w-[100px] opacity-100 ml-2' : 'max-w-0 opacity-0 ml-0 sm:max-w-[100px] sm:opacity-100 sm:ml-2'}`}>
                                     Watchlist
                                 </span>
-                                {watchlist.length > 0 && activeTab === 'watchlist' && (
+                                {filteredWatchlist.length > 0 && activeTab === 'watchlist' && (
                                     <span className={`relative z-10 bg-black/20 px-1.5 py-0.5 rounded-full text-xs ml-1.5`}>
-                                        {formatCount(watchlist.length)}
+                                        {formatCount(filteredWatchlist.length)}
                                     </span>
                                 )}
                             </button>
@@ -2477,9 +2483,9 @@ function App() {
                                 <span className={`relative z-10 overflow-hidden whitespace-nowrap ${performanceSettings.enhancedMotion ? 'transition-all duration-300 ease-in-out' : ''} ${activeTab === 'library' ? 'max-w-[100px] opacity-100 ml-2' : 'max-w-0 opacity-0 ml-0 sm:max-w-[100px] sm:opacity-100 sm:ml-2'}`}>
                                     Library
                                 </span>
-                                {library.length > 0 && activeTab === 'library' && (
+                                {filteredLibrary.length > 0 && activeTab === 'library' && (
                                     <span className="relative z-10 bg-black/20 px-1.5 py-0.5 rounded-full text-xs transition-colors ml-1.5">
-                                        {formatCount(library.length)}
+                                        {formatCount(filteredLibrary.length)}
                                     </span>
                                 )}
                             </button>

@@ -79,7 +79,7 @@ export default function WatchlistCard({ item, onClick, onMoveToLibrary, onRemove
                         <EyeOff size={16} />
                     </button>
                     <button
-                        onClick={() => onGenerateInfo(item.title, item.id, 'watchlist')}
+                        onClick={() => onGenerateInfo(item, item.id, 'watchlist')}
                         disabled={isLoading}
                         className="p-2 rounded-xl bg-black/60 hover:bg-violet-600 text-gray-300 hover:text-white shadow-lg transition-all disabled:opacity-50"
                         title="Regenerate info"
@@ -137,7 +137,7 @@ export default function WatchlistCard({ item, onClick, onMoveToLibrary, onRemove
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onGenerateInfo && onGenerateInfo(item.title || item, item.id, 'watchlist');
+                                onGenerateInfo && onGenerateInfo(item, item.id, 'watchlist');
                             }}
                             className="w-full flex items-center justify-center gap-2 bg-violet-600/20 hover:bg-violet-600 text-violet-300 hover:text-white border border-violet-500/30 hover:border-violet-500 py-2 rounded-xl text-xs font-medium transition-all"
                         >
