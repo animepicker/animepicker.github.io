@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, animate, useMotionValue } from 'framer-motion';
 import LibraryDisplay from './components/LibraryDisplay';
 import RecommendationDisplay from './components/RecommendationDisplay';
 import WatchlistDisplay from './components/WatchlistDisplay';
@@ -44,6 +44,8 @@ import { LogOut, User, LayoutGrid, Sparkles, ArrowUp, ArrowDown, Plus, X, Play, 
 const DEMOGRAPHIC_DEFAULT_INSTRUCTION = "[ALWAYS] IMPORTANT: Analyze the anime's demographic (Shonen, Seinen, Shojo, Josei, Kodomomuke). You MUST include the identified demographic as a string in the \"genres\" array.";
 const RECOMMENDATION_DEFAULT_INSTRUCTION = "Identify the most common demographics (e.g., Seinen, Josei, Shonen, Shoujo) in my library and prioritize new recommendations that match them.";
 
+const TABS = ['recommendations', 'watchlist', 'library'];
+
 function App() {
     const [aiProvider, setAiProvider] = useState(localStorage.getItem('ai_provider') || 'openrouter');
     const [apiKey, setApiKey] = useState(localStorage.getItem('openrouter_api_key') || '');
@@ -82,6 +84,10 @@ function App() {
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [loadingItems, setLoadingItems] = useState([]);
     const [activeTab, setActiveTab] = useState('recommendations');
+    const [performanceSettings, setPerformanceSettings] = useState(() => {
+        const saved = localStorage.getItem('performance_settings');
+        return saved ? JSON.parse(saved) : { enableBlur: false, enhancedMotion: false };
+    });
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [showScrollBottom, setShowScrollBottom] = useState(true);
     const [scrollTopPressed, setScrollTopPressed] = useState(false);
@@ -106,8 +112,73 @@ function App() {
     const scrollPositions = useRef({ library: 0, recommendations: 0, watchlist: 0 });
     const activeTabRef = useRef(activeTab);
     const tabsRef = useRef(null);
+    const carouselViewportRef = useRef(null);
     const watchlistInputRef = useRef(null);
     const recsInputRef = useRef(null);
+    const [carouselWidth, setCarouselWidth] = useState(() => {
+        if (typeof window === 'undefined') return 1000;
+        return window.innerWidth || 1000;
+    });
+    const carouselX = useMotionValue(0);
+    const dragStartXRef = useRef(0);
+    const carouselAnimationRef = useRef(null);
+
+    const stopCarouselAnimation = useCallback(() => {
+        if (carouselAnimationRef.current) {
+            carouselAnimationRef.current.stop();
+            carouselAnimationRef.current = null;
+        }
+    }, []);
+
+    const updateCarouselWidth = useCallback(() => {
+        const measuredWidth = carouselViewportRef.current?.clientWidth;
+        if (measuredWidth && measuredWidth > 0) {
+            setCarouselWidth(measuredWidth);
+            return;
+        }
+        if (typeof window !== 'undefined') {
+            setCarouselWidth(window.innerWidth || 1000);
+        }
+    }, []);
+
+    useLayoutEffect(() => {
+        updateCarouselWidth();
+        if (typeof window === 'undefined') return undefined;
+
+        const handleResize = () => updateCarouselWidth();
+        window.addEventListener('resize', handleResize);
+
+        let resizeObserver;
+        if (typeof ResizeObserver !== 'undefined' && carouselViewportRef.current) {
+            resizeObserver = new ResizeObserver(() => updateCarouselWidth());
+            resizeObserver.observe(carouselViewportRef.current);
+        }
+
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            if (resizeObserver) resizeObserver.disconnect();
+        };
+    }, [updateCarouselWidth]);
+
+    const animateCarouselToIndex = useCallback((tabIndex) => {
+        stopCarouselAnimation();
+        const targetX = -(tabIndex * carouselWidth);
+        const animation = animate(
+            carouselX,
+            targetX,
+            performanceSettings.enhancedMotion
+                ? { type: 'tween', ease: 'easeOut', duration: 0.25 }
+                : { duration: 0.2 }
+        );
+        carouselAnimationRef.current = animation;
+        return animation;
+    }, [carouselX, carouselWidth, performanceSettings.enhancedMotion, stopCarouselAnimation]);
+
+    useEffect(() => {
+        const tabIndex = TABS.indexOf(activeTab);
+        const animation = animateCarouselToIndex(tabIndex);
+        return () => animation.stop();
+    }, [activeTab, animateCarouselToIndex]);
 
     const getCurrentApiKey = useCallback(() => {
         if (aiProvider === 'groq') return groqApiKey;
@@ -149,11 +220,6 @@ function App() {
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [isGoogleSignedIn, setIsGoogleSignedIn] = useState(false);
     const [lastCloudSync, setLastCloudSync] = useState(null);
-
-    const [performanceSettings, setPerformanceSettings] = useState(() => {
-        const saved = localStorage.getItem('performance_settings');
-        return saved ? JSON.parse(saved) : { enableBlur: false, enhancedMotion: false };
-    });
 
     // Apply blur settings to body
     useEffect(() => {
@@ -813,8 +879,7 @@ function App() {
     const handleTabSwitch = (newTab) => {
         // Use ref to check against current state even if closure is stale
         if (newTab === activeTabRef.current) return;
-        // Save current scroll position
-        scrollPositions.current[activeTabRef.current] = window.scrollY;
+        activeTabRef.current = newTab;
         setActiveTab(newTab);
     };
 
@@ -2112,7 +2177,7 @@ function App() {
     };
 
     return (
-        <div className={`relative bg-[#0a0a0f] ${currentUser ? 'min-h-screen pb-24' : 'h-screen overflow-hidden'} ${!performanceSettings.enableBlur ? 'disable-blur' : ''} ${!performanceSettings.enhancedMotion ? 'reduced-motion' : ''}`} style={{ overflowX: 'clip' }}>
+        <div className={`relative bg-[#0a0a0f] h-screen overflow-hidden ${!performanceSettings.enableBlur ? 'disable-blur' : ''} ${!performanceSettings.enhancedMotion ? 'reduced-motion' : ''}`} style={{ overflowX: 'clip' }}>
             {/* Added padding-bottom to avoid overlap with Quick Bar */}
 
             {/* Fixed Background - OUTSIDE the scroll flow */}
@@ -2527,157 +2592,174 @@ function App() {
                             </button>
                         </div>
 
-                        {/* Content Area - with top margin for fixed tabs */}
-                        <div className="w-full mt-24">
-                            <AnimatePresence mode="wait">
-                                {activeTab === 'recommendations' && (
-                                    <motion.div
-                                        key="recommendations"
-                                        initial={performanceSettings.enhancedMotion ? { opacity: 0, y: 10 } : { opacity: 0, y: 0 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={performanceSettings.enhancedMotion ? { opacity: 0, scale: 0.98 } : { opacity: 0, y: 0 }}
-                                        transition={performanceSettings.enhancedMotion ? { duration: 0.25, ease: "easeOut" } : { duration: 0.2 }}
-                                        className="min-h-[60vh]"
-                                    >
-                                        {filteredRecommendations.length === 0 ? (
-                                            <div className="text-center py-16 relative overflow-hidden">
-                                                <AnimatePresence mode="wait">
-                                                    {isLoading ? (
-                                                        <motion.div
-                                                            key="loading-state"
-                                                            initial={{ opacity: 0, scale: 0.95 }}
-                                                            animate={{ opacity: 1, scale: 1 }}
-                                                            exit={{ opacity: 0, scale: 1.05 }}
-                                                            className="flex flex-col items-center"
-                                                        >
-                                                            <div className="relative mb-8">
-                                                                {/* Simplified Glow Background */}
-                                                                <div className="absolute inset-[-20px] bg-gradient-to-tr from-pink-500/10 via-violet-500/10 to-transparent blur-xl rounded-full" />
-                                                                <motion.div
-                                                                    animate={{ y: [0, -10, 0] }}
-                                                                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                                                                    className="relative w-24 h-24 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center shadow-2xl shadow-pink-500/10"
-                                                                >
-                                                                    <Sparkles size={48} className="text-pink-400" />
-                                                                </motion.div>
-                                                            </div>
-                                                            <motion.h3
-                                                                animate={{ opacity: [0.5, 1, 0.5] }}
-                                                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                                                                className="text-2xl font-black text-white mb-3"
+                        {/* Content Area - Carousel for smooth swiping */}
+                        <div ref={carouselViewportRef} className="w-full flex-grow overflow-x-hidden relative mt-20">
+                            <motion.div
+                                drag="x"
+                                dragMomentum={false}
+                                dragConstraints={{
+                                    left: -((TABS.length - 1) * carouselWidth),
+                                    right: 0
+                                }}
+                                dragElastic={0}
+                                onDragStart={() => {
+                                    stopCarouselAnimation();
+                                    dragStartXRef.current = carouselX.get();
+                                }}
+                                onDragEnd={(e, info) => {
+                                    const currentIndex = TABS.indexOf(activeTabRef.current);
+                                    const expectedX = -(currentIndex * carouselWidth);
+                                    const absX = Math.abs(info.offset.x);
+                                    const absY = Math.abs(info.offset.y);
+
+                                    // For diagonal/vertical gestures, reset instantly (no snap animation).
+                                    if (absY > absX) {
+                                        carouselX.set(expectedX);
+                                        return;
+                                    }
+
+                                    const dragDelta = carouselX.get() - dragStartXRef.current;
+                                    const movedTabs = -dragDelta / carouselWidth;
+                                    // Switch if released more than 30% of a tab.
+                                    let targetIndex = currentIndex;
+                                    if (movedTabs > 0.3) {
+                                        targetIndex = Math.min(currentIndex + 1, TABS.length - 1);
+                                    } else if (movedTabs < -0.3) {
+                                        targetIndex = Math.max(currentIndex - 1, 0);
+                                    }
+
+                                    if (targetIndex !== currentIndex) {
+                                        handleTabSwitch(TABS[targetIndex]);
+                                    } else {
+                                        animateCarouselToIndex(currentIndex);
+                                    }
+                                }}
+                                className="carousel-gesture flex w-full"
+                                style={{ x: carouselX, touchAction: 'pan-y' }}
+                            >
+                                {/* Tab 1: Recommendations */}
+                                <div className="w-full shrink-0 h-[calc(100vh-5rem)] overflow-y-auto custom-scrollbar pb-32">
+                                    {filteredRecommendations.length === 0 ? (
+                                        <div className="text-center py-16 relative overflow-hidden">
+                                            <AnimatePresence mode="wait">
+                                                {isLoading ? (
+                                                    <motion.div
+                                                        key="loading-state"
+                                                        initial={{ opacity: 0, scale: 0.95 }}
+                                                        animate={{ opacity: 1, scale: 1 }}
+                                                        exit={{ opacity: 0, scale: 1.05 }}
+                                                        className="flex flex-col items-center"
+                                                    >
+                                                        <div className="relative mb-8">
+                                                            <div className="absolute inset-[-20px] bg-gradient-to-tr from-pink-500/10 via-violet-500/10 to-transparent blur-xl rounded-full" />
+                                                            <motion.div
+                                                                animate={{ y: [0, -10, 0] }}
+                                                                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                                                                className="relative w-24 h-24 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center shadow-2xl shadow-pink-500/10"
                                                             >
-                                                                Curating...
-                                                            </motion.h3>
-                                                            <p className="text-gray-400 max-w-sm mx-auto text-sm leading-relaxed px-6">
-                                                                Analyzing your taste profile to uncover your next obsession.
-                                                            </p>
-                                                        </motion.div>
-                                                    ) : (
-                                                        <motion.div
-                                                            key="empty-state"
-                                                            initial={{ opacity: 0 }}
-                                                            animate={{ opacity: 1 }}
-                                                            exit={{ opacity: 0 }}
-                                                            className="flex flex-col items-center"
+                                                                <Sparkles size={48} className="text-pink-400" />
+                                                            </motion.div>
+                                                        </div>
+                                                        <motion.h3
+                                                            animate={{ opacity: [0.5, 1, 0.5] }}
+                                                            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                                                            className="text-2xl font-black text-white mb-3"
                                                         >
-                                                            <div className="w-20 h-20 rounded-2xl bg-white/5 mb-6 flex items-center justify-center border border-white/5">
-                                                                <Sparkles size={40} className="text-violet-400/50" />
-                                                            </div>
-                                                            <h3 className="text-xl font-bold text-white mb-2">No recommendations yet</h3>
-                                                            <p className="text-gray-400 max-w-sm mx-auto text-sm">
-                                                                {filteredLibrary.length === 0
-                                                                    ? "Add some anime to your library first, then click Generate Picks below."
-                                                                    : "Click the Generate Picks button below to get personalized picks!"
-                                                                }
-                                                            </p>
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
-                                            </div>
-                                        ) : (
-                                            <RecommendationDisplay
-                                                recommendations={filteredRecommendations}
-                                                onWatched={addToLibrary}
-                                                onRemove={removeFromLibrary}
-                                                onRemovePick={removeFromRecommendations}
-                                                library={library}
-                                                watchlist={watchlist}
-                                                onAddToWatchlist={addToWatchlist}
-                                                onRemoveFromWatchlist={removeFromWatchlist}
-                                                onGenerate={handleGenerate}
-                                                onClear={handleClear}
-                                                onModalStateChange={setIsModalOpen}
-                                                onExclude={openExcludeModal}
-                                                enhancedMotion={performanceSettings.enhancedMotion}
-                                                searchQuery={recommendationsSearchQuery}
-                                                onSearchChange={setRecommendationsSearchQuery}
-                                                isInLibrary={isInLibrary}
-                                                isInWatchlist={isInWatchlist}
-                                            />
-                                        )}
-                                    </motion.div>
-                                )}
-
-                                {activeTab === 'watchlist' && (
-                                    <motion.div
-                                        key="watchlist"
-                                        initial={performanceSettings.enhancedMotion ? { opacity: 0, y: 10 } : { opacity: 0, y: 0 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={performanceSettings.enhancedMotion ? { opacity: 0, scale: 0.98 } : { opacity: 0, y: 0 }}
-                                        transition={performanceSettings.enhancedMotion ? { duration: 0.25, ease: "easeOut" } : { duration: 0.2 }}
-                                        className="min-h-[60vh]"
-                                    >
-                                        <WatchlistDisplay
-                                            watchlist={filteredWatchlist}
-                                            library={library}
-                                            onRemove={requestRemoveFromWatchlist}
-                                            onMoveToLibrary={moveToLibrary}
-                                            onMoveToWatchlist={moveToWatchlist}
-                                            onUpdateNote={updateItemNote}
-                                            isInLibrary={isInLibrary}
-                                            isInWatchlist={isInWatchlist}
-                                            onImport={() => importFileRef.current.click()}
-                                            onModalStateChange={setIsModalOpen}
-                                            loadingItems={loadingItems}
-                                            searchQuery={watchlistSearchQuery}
-                                            onSearchChange={setWatchlistSearchQuery}
-                                            onGenerateInfo={generateInfoForItem}
-                                            onExclude={openExcludeModal}
-                                            enhancedMotion={performanceSettings.enhancedMotion}
-                                        />
-                                    </motion.div>
-                                )}
-
-                                {activeTab === 'library' && (
-                                    <motion.div
-                                        key="library"
-                                        initial={performanceSettings.enhancedMotion ? { opacity: 0, y: 10 } : { opacity: 0, y: 0 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={performanceSettings.enhancedMotion ? { opacity: 0, scale: 0.98 } : { opacity: 0, y: 0 }}
-                                        transition={performanceSettings.enhancedMotion ? { duration: 0.25, ease: "easeOut" } : { duration: 0.2 }}
-                                        className="min-h-[60vh]"
-                                    >
-                                        <LibraryDisplay
-                                            library={filteredLibrary}
+                                                            Curating...
+                                                        </motion.h3>
+                                                        <p className="text-gray-400 max-w-sm mx-auto text-sm leading-relaxed px-6">
+                                                            Analyzing your taste profile to uncover your next obsession.
+                                                        </p>
+                                                    </motion.div>
+                                                ) : (
+                                                    <motion.div
+                                                        key="empty-state"
+                                                        initial={{ opacity: 0 }}
+                                                        animate={{ opacity: 1 }}
+                                                        exit={{ opacity: 0 }}
+                                                        className="flex flex-col items-center"
+                                                    >
+                                                        <div className="w-20 h-20 rounded-2xl bg-white/5 mb-6 flex items-center justify-center border border-white/5">
+                                                            <Sparkles size={40} className="text-violet-400/50" />
+                                                        </div>
+                                                        <h3 className="text-xl font-bold text-white mb-2">No recommendations yet</h3>
+                                                        <p className="text-gray-400 max-w-sm mx-auto text-sm">
+                                                            {filteredLibrary.length === 0
+                                                                ? "Add some anime to your library first, then click Generate Picks below."
+                                                                : "Click the Generate Picks button below to get personalized picks!"
+                                                            }
+                                                        </p>
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+                                        </div>
+                                    ) : (
+                                        <RecommendationDisplay
+                                            recommendations={filteredRecommendations}
+                                            onWatched={addToLibrary}
                                             onRemove={removeFromLibrary}
-                                            onGenerateInfo={generateInfoForItem}
-                                            onGenerateAllInfo={generateAllInfo}
-                                            onImport={() => importFileRef.current.click()}
-                                            loadingItems={loadingItems}
-                                            searchQuery={searchQuery}
-                                            onSearchChange={setSearchQuery}
-                                            onUpdateNote={updateItemNote}
-                                            isInLibrary={isInLibrary}
-                                            isInWatchlist={isInWatchlist}
+                                            onRemovePick={removeFromRecommendations}
+                                            library={library}
+                                            watchlist={watchlist}
+                                            onAddToWatchlist={addToWatchlist}
+                                            onRemoveFromWatchlist={removeFromWatchlist}
+                                            onGenerate={handleGenerate}
+                                            onClear={handleClear}
                                             onModalStateChange={setIsModalOpen}
-                                            onMoveToWatchlist={moveToWatchlist}
-                                            onMoveToLibrary={moveToLibrary}
                                             onExclude={openExcludeModal}
                                             enhancedMotion={performanceSettings.enhancedMotion}
+                                            searchQuery={recommendationsSearchQuery}
+                                            onSearchChange={setRecommendationsSearchQuery}
+                                            isInLibrary={isInLibrary}
+                                            isInWatchlist={isInWatchlist}
                                         />
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
+                                    )}
+                                </div>
+
+                                {/* Tab 2: Watchlist */}
+                                <div className="w-full shrink-0 h-[calc(100vh-5rem)] overflow-y-auto custom-scrollbar pb-32">
+                                    <WatchlistDisplay
+                                        watchlist={filteredWatchlist}
+                                        library={library}
+                                        onRemove={requestRemoveFromWatchlist}
+                                        onMoveToLibrary={moveToLibrary}
+                                        onMoveToWatchlist={moveToWatchlist}
+                                        onUpdateNote={updateItemNote}
+                                        isInLibrary={isInLibrary}
+                                        isInWatchlist={isInWatchlist}
+                                        onImport={() => importFileRef.current.click()}
+                                        onModalStateChange={setIsModalOpen}
+                                        loadingItems={loadingItems}
+                                        searchQuery={watchlistSearchQuery}
+                                        onSearchChange={setWatchlistSearchQuery}
+                                        onGenerateInfo={generateInfoForItem}
+                                        onExclude={openExcludeModal}
+                                        enhancedMotion={performanceSettings.enhancedMotion}
+                                    />
+                                </div>
+
+                                {/* Tab 3: Library */}
+                                <div className="w-full shrink-0 h-[calc(100vh-5rem)] overflow-y-auto custom-scrollbar pb-32">
+                                    <LibraryDisplay
+                                        library={filteredLibrary}
+                                        onRemove={removeFromLibrary}
+                                        onGenerateInfo={generateInfoForItem}
+                                        onGenerateAllInfo={generateAllInfo}
+                                        onImport={() => importFileRef.current.click()}
+                                        loadingItems={loadingItems}
+                                        searchQuery={searchQuery}
+                                        onSearchChange={setSearchQuery}
+                                        onUpdateNote={updateItemNote}
+                                        isInLibrary={isInLibrary}
+                                        isInWatchlist={isInWatchlist}
+                                        onModalStateChange={setIsModalOpen}
+                                        onMoveToWatchlist={moveToWatchlist}
+                                        onMoveToLibrary={moveToLibrary}
+                                        onExclude={openExcludeModal}
+                                        enhancedMotion={performanceSettings.enhancedMotion}
+                                    />
+                                </div>
+                            </motion.div>
                         </div>
                     </>
                 ) : (

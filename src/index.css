@@ -101,6 +101,11 @@ body {
   max-width: 100vw;
 }
 
+.carousel-gesture,
+.carousel-gesture * {
+  touch-action: pan-y;
+}
+
 /* Custom Scrollbar */
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
