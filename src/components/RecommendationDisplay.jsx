@@ -5,7 +5,7 @@ import { getAnimeImage } from '../services/jikanService';
 import { formatTags } from '../utils/tagUtils';
 import DetailsModal from './DetailsModal';
 
-const RecommendationCard = memo(({ rec, index, onWatched, onRemove, isInLibrary, isInWatchlist, onAddToWatchlist, onRemoveFromWatchlist, onClick, onExclude }) => {
+const RecommendationCard = memo(({ rec, index, onWatched, onRemove, onRemovePick, isInLibrary, isInWatchlist, onAddToWatchlist, onRemoveFromWatchlist, onClick, onExclude }) => {
     const [image, setImage] = useState(rec.image || null);
     const [isLoadingImage, setIsLoadingImage] = useState(!rec.image);
 
@@ -120,6 +120,18 @@ const RecommendationCard = memo(({ rec, index, onWatched, onRemove, isInLibrary,
                     >
                         <EyeOff size={16} />
                     </button>
+                    {onRemovePick && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onRemovePick(rec);
+                            }}
+                            className="p-2 rounded-xl bg-black/60 hover:bg-red-600 text-gray-300 hover:text-white shadow-lg transition-all"
+                            title="Remove from picks"
+                        >
+                            <X size={16} />
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -200,6 +212,7 @@ export default function RecommendationDisplay({
     recommendations,
     onWatched,
     onRemove,
+    onRemovePick,
     library,
     watchlist,
     onAddToWatchlist,
@@ -452,6 +465,7 @@ export default function RecommendationDisplay({
                                 index={index}
                                 onWatched={onWatched}
                                 onRemove={onRemove}
+                                onRemovePick={onRemovePick}
                                 isInLibrary={isInLibrary}
                                 isInWatchlist={isInWatchlist}
                                 onAddToWatchlist={onAddToWatchlist}

@@ -42,25 +42,69 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
     console.warn(`Potential model/provider mismatch: Sending ${model} to ${provider}. This usually results in an empty response.`);
   }
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: headers,
-    signal: signal,
-    body: JSON.stringify({
-      model: model,
-      max_tokens: 2000,
-      messages: [
-        {
-          role: "user",
-          content: prompt
-        }
-      ]
-    })
-  });
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const getRetryDelayMs = (res, attempt) => {
+    const retryAfter = res.headers.get('Retry-After');
+    if (retryAfter) {
+      const seconds = Number(retryAfter);
+      if (!Number.isNaN(seconds)) return Math.min(seconds * 1000, 10000);
+      const date = Date.parse(retryAfter);
+      if (!Number.isNaN(date)) return Math.max(0, Math.min(date - Date.now(), 10000));
+    }
+    return Math.min(500 * Math.pow(2, attempt), 4000);
+  };
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || `API Error: ${response.status}`);
+  const maxAttempts = 3;
+  let response = null;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    response = await fetch(url, {
+      method: "POST",
+      headers: headers,
+      signal: signal,
+      body: JSON.stringify({
+        model: model,
+        max_tokens: 2000,
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          }
+        ]
+      })
+    });
+
+    if (response.ok) break;
+
+    const isRateLimit = response.status === 429;
+    const isTransient = response.status >= 500;
+    const shouldRetry = (isRateLimit || isTransient) && attempt < maxAttempts - 1;
+    if (shouldRetry) {
+      await sleep(getRetryDelayMs(response, attempt));
+      continue;
+    }
+    break;
+  }
+
+  if (!response || !response.ok) {
+    let errorMessage = `API Error: ${response ? response.status : 'unknown'}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.error?.message || error.message || errorMessage;
+    } catch (e) {
+      try {
+        const text = await response.text();
+        if (text) errorMessage = text.slice(0, 200);
+      } catch (inner) {
+        // keep default errorMessage
+      }
+    }
+
+    if (response && response.status === 429) {
+      errorMessage = `Rate limit hit. Wait a bit or switch provider/model. Details: ${errorMessage}`;
+    }
+    const err = new Error(errorMessage);
+    if (response) err.code = response.status;
+    throw err;
   }
 
   const data = await response.json();

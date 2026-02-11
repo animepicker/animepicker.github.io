@@ -155,6 +155,8 @@ export const getToken = (username, hint = null, silent = false, forceSelect = fa
                         token: resp.access_token,
                         expiresAt
                     }));
+                    // Set token for GAPI client
+                    gapi.client.setToken({ access_token: resp.access_token });
                     resolve(resp.access_token);
                 }
             };

@@ -155,10 +155,6 @@ function App() {
         return saved ? JSON.parse(saved) : { enableBlur: false, enhancedMotion: false };
     });
 
-    useEffect(() => {
-        localStorage.setItem('performance_settings', JSON.stringify(performanceSettings));
-    }, [performanceSettings]);
-
     // Apply blur settings to body
     useEffect(() => {
         if (performanceSettings.enableBlur) {
@@ -168,9 +164,13 @@ function App() {
         }
     }, [performanceSettings.enableBlur]);
 
-    const togglePerformanceSetting = (setting) => {
-        setPerformanceSettings(prev => ({ ...prev, [setting]: !prev[setting] }));
-    };
+    const togglePerformanceSetting = useCallback((setting) => {
+        setPerformanceSettings(prev => {
+            const newSettings = { ...prev, [setting]: !prev[setting] };
+            performanceRef.current = newSettings; // Update Ref
+            return newSettings;
+        });
+    }, []);
 
     const modalVariants = performanceSettings.enhancedMotion ? {
         hidden: { opacity: 0, scale: 0.95 },
@@ -187,10 +187,32 @@ function App() {
 
     const libraryRef = useRef(library);
     const watchlistRef = useRef(watchlist);
-    const isLoadingLibrary = useRef(false);
-    const hasAutoSynced = useRef(false);
+    const recommendationsRef = useRef(recommendations);
+    const instructionsRef = useRef(customInstructions);
+    const excludedItemsRef = useRef(excludedItems);
+    const performanceRef = useRef(performanceSettings);
+    const isLoadingLibrary = useRef(true); // Start as true to prevent mount markings
+    const isApplyingCloudSync = useRef(false);
+    const [hasAutoSynced, setHasAutoSynced] = useState(false);
     const autoSyncTimerRef = useRef(null);
     const importFileRef = useRef(null);
+
+    const markLocalChange = useCallback((field) => {
+        if (!currentUser || isLoadingLibrary.current || isApplyingCloudSync.current) return;
+        const username = currentUser.username || currentUser;
+        localStorage.setItem(`${username}_last_local_change_iso`, new Date().toISOString());
+        if (field) {
+            const now = new Date().toISOString();
+            localStorage.setItem(`${username}_last_local_change_${field}_iso`, now);
+        }
+    }, [currentUser]);
+
+    useEffect(() => {
+        localStorage.setItem('performance_settings', JSON.stringify(performanceSettings));
+        if (currentUser && !isLoadingLibrary.current) {
+            markLocalChange('performanceSettings');
+        }
+    }, [performanceSettings, currentUser, markLocalChange]);
 
     useEffect(() => {
         if (currentUser) {
@@ -291,15 +313,21 @@ function App() {
             const savedExcluded = getUserExcluded(username);
             setExcludedItems(savedExcluded || []);
 
+            // Protect against mount-load triggering auto-sync markers
+            // 2000ms is enough for all React effects to settle
             setTimeout(() => {
                 isLoadingLibrary.current = false;
-            }, 0);
+            }, 2000);
         } else {
             setLibrary([]);
             libraryRef.current = [];
             setWatchlist([]);
             watchlistRef.current = [];
             setRecommendations([]);
+            recommendationsRef.current = [];
+            setExcludedItems([]);
+            excludedItemsRef.current = [];
+            isLoadingLibrary.current = false;
         }
     }, [currentUser]);
 
@@ -307,9 +335,10 @@ function App() {
         if (currentUser && !isLoadingLibrary.current) {
             const username = currentUser.username || currentUser;
             saveUserLibrary(username, library);
+            markLocalChange('library');
         }
         libraryRef.current = library;
-    }, [library, currentUser]);
+    }, [library, currentUser, markLocalChange]);
 
     // Body scroll lock effect
     useEffect(() => {
@@ -344,21 +373,24 @@ function App() {
         if (currentUser && !isLoadingLibrary.current) {
             const username = currentUser.username || currentUser;
             saveUserWatchlist(username, watchlist);
+            markLocalChange('watchlist');
         }
         watchlistRef.current = watchlist;
-    }, [watchlist, currentUser]);
+    }, [watchlist, currentUser, markLocalChange]);
 
     // Save recommendations when they change
     useEffect(() => {
         if (currentUser && !isLoadingLibrary.current) {
             const username = currentUser.username || currentUser;
             saveUserRecommendations(username, recommendations);
+            markLocalChange('recommendations');
         }
-    }, [recommendations, currentUser]);
+        recommendationsRef.current = recommendations;
+    }, [recommendations, currentUser, markLocalChange]);
 
     // Automatic Cloud Sync (Debounced)
     useEffect(() => {
-        if (isGoogleSignedIn && currentUser && !isLoadingLibrary.current && hasAutoSynced.current) {
+        if (isGoogleSignedIn && currentUser && !isLoadingLibrary.current && hasAutoSynced) {
             // Cancel existing timer
             if (autoSyncTimerRef.current) {
                 clearTimeout(autoSyncTimerRef.current);
@@ -376,23 +408,27 @@ function App() {
                 clearTimeout(autoSyncTimerRef.current);
             }
         };
-    }, [library, watchlist, recommendations, customInstructions, excludedItems, isGoogleSignedIn, currentUser]);
+    }, [library, watchlist, recommendations, customInstructions, excludedItems, performanceSettings, isGoogleSignedIn, currentUser, hasAutoSynced]);
 
     // Save custom instructions when they change
     useEffect(() => {
         if (currentUser && !isLoadingLibrary.current) {
             const username = currentUser.username || currentUser;
             saveUserInstructions(username, customInstructions);
+            markLocalChange('instructions');
         }
-    }, [customInstructions, currentUser]);
+        instructionsRef.current = customInstructions;
+    }, [customInstructions, currentUser, markLocalChange]);
 
     // Save excluded items when they change
     useEffect(() => {
         if (currentUser && !isLoadingLibrary.current) {
             const username = currentUser.username || currentUser;
             saveUserExcluded(username, excludedItems);
+            markLocalChange('excludedItems');
         }
-    }, [excludedItems, currentUser]);
+        excludedItemsRef.current = excludedItems;
+    }, [excludedItems, currentUser, markLocalChange]);
 
     // Keep activeTabRef in sync
     useEffect(() => {
@@ -453,12 +489,12 @@ function App() {
             if (currentUser.isGoogle || hasStoredToken) {
                 ensureSubsystems().then(() => {
                     getToken(username, hint, true).then(token => {
-                        if (token && !hasAutoSynced.current) {
-                            hasAutoSynced.current = true;
+                        if (token && !hasAutoSynced) {
+                            setHasAutoSynced(true);
                             setIsGoogleSignedIn(true);
                             setLastCloudSync(localStorage.getItem(`${username}_last_cloud_sync`) || null);
-                            // CRITICAL: Pass currentUser directly
-                            handleCloudSync(false, currentUser);
+                            // CRITICAL: Pass currentUser directly AND forceCloud=true to stop resurrection
+                            handleCloudSync(false, currentUser, true);
                         }
                     }).catch((err) => {
                         console.warn('Initial silent Google re-auth failed or not available for user.');
@@ -581,7 +617,7 @@ function App() {
         toast.info("Signed out from Google Drive");
     };
 
-    const handleCloudSync = async (showToast = true, overrideUser = null) => {
+    const handleCloudSync = async (showToast = true, overrideUser = null, forceCloud = false) => {
         const userToSync = overrideUser || currentUser;
         if (!userToSync || !userToSync.username) {
             console.error("Cloud Sync: No valid user to sync.", { currentUser, overrideUser });
@@ -593,48 +629,104 @@ function App() {
         setIsGoogleLoading(true);
         try {
             await ensureSubsystems();
+            const username = userToSync.username;
+
+            // Safety check: ensure GAPI has a token
+            if (!gapi.client.getToken()) {
+                const token = await getToken(username, userToSync.isGoogle ? userToSync.profile?.email : null, true);
+                if (!token) throw new Error("Not authenticated");
+            }
+
             const syncFile = await findSyncFile();
+            const fields = ['library', 'watchlist', 'recommendations', 'instructions', 'excludedItems', 'performanceSettings'];
+            const getLocalFieldTs = (field) => {
+                const iso = localStorage.getItem(`${username}_last_local_change_${field}_iso`);
+                return iso ? new Date(iso).getTime() : 0;
+            };
+            const setLocalFieldTs = (field, ts) => {
+                if (ts > 0) localStorage.setItem(`${username}_last_local_change_${field}_iso`, new Date(ts).toISOString());
+            };
 
             if (syncFile) {
                 const cloudData = await downloadSyncData(syncFile.id);
-                // Simple merge strategy: incoming data wins for now, or merge lists
-                const mergeData = (local, cloud) => {
-                    const localMap = new Map((local || []).map(item => [((item.title || item).toLowerCase().trim()), item]));
-                    (cloud || []).forEach(item => {
-                        if (item && (item.title || item)) {
-                            localMap.set((item.title || item).toLowerCase().trim(), item);
-                        }
-                    });
-                    return Array.from(localMap.values());
+                const cloudSnapshotTs = cloudData?.timestamp ? new Date(cloudData.timestamp).getTime() : 0;
+                const cloudModifiedAt = cloudData?.modifiedAt || {};
+                const getCloudFieldTs = (field) => {
+                    const iso = cloudModifiedAt[field];
+                    if (iso) return new Date(iso).getTime();
+                    return cloudSnapshotTs;
                 };
 
-                const mergedLibrary = mergeData(library, cloudData.library);
-                const mergedWatchlist = mergeData(watchlist, cloudData.watchlist);
-                const mergedRecommendations = mergeData(recommendations, cloudData.recommendations);
-                const mergedInstructions = Array.from(new Set([...customInstructions, ...(cloudData.instructions || [])]));
-                const mergedExcluded = mergeData(excludedItems, cloudData.excludedItems);
-                const mergedPerformance = { ...performanceSettings, ...(cloudData.performanceSettings || {}) };
+                const localState = {
+                    library: libraryRef.current,
+                    watchlist: watchlistRef.current,
+                    recommendations: recommendationsRef.current,
+                    instructions: instructionsRef.current,
+                    excludedItems: excludedItemsRef.current,
+                    performanceSettings: performanceRef.current
+                };
 
-                setLibrary(mergedLibrary);
-                setWatchlist(mergedWatchlist);
-                setRecommendations(mergedRecommendations);
-                setCustomInstructions(mergedInstructions);
-                setExcludedItems(mergedExcluded);
-                setPerformanceSettings(mergedPerformance);
+                const resolved = {};
+                const resolvedModifiedAt = {};
+                fields.forEach((field) => {
+                    const localTs = getLocalFieldTs(field);
+                    const cloudTs = getCloudFieldTs(field);
+                    // Cloud >= Local ensures cloud wins in case of equality (stable baseline)
+                    // forceCloud ensures we favor cloud on the very first sync of the session
+                    const chooseCloud = forceCloud || (cloudTs >= localTs);
 
-                // Upload merged data back to ensure both are in sync
+                    resolved[field] = chooseCloud ? cloudData?.[field] : localState[field];
+                    const resolvedTs = chooseCloud ? cloudTs : localTs;
+                    resolvedModifiedAt[field] = new Date(resolvedTs > 0 ? resolvedTs : Date.now()).toISOString();
+                });
+
+                isApplyingCloudSync.current = true;
+                setLibrary(Array.isArray(resolved.library) ? resolved.library : library);
+                setWatchlist(Array.isArray(resolved.watchlist) ? resolved.watchlist : watchlist);
+                setRecommendations(Array.isArray(resolved.recommendations) ? resolved.recommendations : recommendations);
+                setCustomInstructions(Array.isArray(resolved.instructions) ? resolved.instructions : customInstructions);
+                setExcludedItems(Array.isArray(resolved.excludedItems) ? resolved.excludedItems : excludedItems);
+                setPerformanceSettings(resolved.performanceSettings || performanceSettings);
+
+                // CRITICAL: Synchronize Refs so subsequent auto-syncs don't re-upload stale local data
+                libraryRef.current = Array.isArray(resolved.library) ? resolved.library : libraryRef.current;
+                watchlistRef.current = Array.isArray(resolved.watchlist) ? resolved.watchlist : watchlistRef.current;
+                recommendationsRef.current = Array.isArray(resolved.recommendations) ? resolved.recommendations : recommendationsRef.current;
+                instructionsRef.current = Array.isArray(resolved.instructions) ? resolved.instructions : instructionsRef.current;
+                excludedItemsRef.current = Array.isArray(resolved.excludedItems) ? resolved.excludedItems : excludedItemsRef.current;
+                performanceRef.current = resolved.performanceSettings || performanceRef.current;
+
+                setTimeout(() => {
+                    isApplyingCloudSync.current = false;
+                }, 0);
+
                 await uploadSyncData({
-                    library: mergedLibrary,
-                    watchlist: mergedWatchlist,
-                    recommendations: mergedRecommendations,
-                    instructions: mergedInstructions,
-                    excludedItems: mergedExcluded,
-                    performanceSettings: mergedPerformance,
+                    library: Array.isArray(resolved.library) ? resolved.library : library,
+                    watchlist: Array.isArray(resolved.watchlist) ? resolved.watchlist : watchlist,
+                    recommendations: Array.isArray(resolved.recommendations) ? resolved.recommendations : recommendations,
+                    instructions: Array.isArray(resolved.instructions) ? resolved.instructions : customInstructions,
+                    excludedItems: Array.isArray(resolved.excludedItems) ? resolved.excludedItems : excludedItems,
+                    performanceSettings: resolved.performanceSettings || performanceSettings,
+                    modifiedAt: resolvedModifiedAt,
                     timestamp: new Date().toISOString()
                 }, syncFile.id);
 
+                fields.forEach((field) => {
+                    const ts = new Date(resolvedModifiedAt[field]).getTime();
+                    setLocalFieldTs(field, ts);
+                });
+
             } else {
                 // No sync file found, create one with current local data
+                const nowIso = new Date().toISOString();
+                const modifiedAt = {
+                    library: localStorage.getItem(`${username}_last_local_change_library_iso`) || nowIso,
+                    watchlist: localStorage.getItem(`${username}_last_local_change_watchlist_iso`) || nowIso,
+                    recommendations: localStorage.getItem(`${username}_last_local_change_recommendations_iso`) || nowIso,
+                    instructions: localStorage.getItem(`${username}_last_local_change_instructions_iso`) || nowIso,
+                    excludedItems: localStorage.getItem(`${username}_last_local_change_excludedItems_iso`) || nowIso,
+                    performanceSettings: localStorage.getItem(`${username}_last_local_change_performanceSettings_iso`) || nowIso
+                };
                 await uploadSyncData({
                     library,
                     watchlist,
@@ -642,14 +734,18 @@ function App() {
                     instructions: customInstructions,
                     excludedItems,
                     performanceSettings,
-                    timestamp: new Date().toISOString()
+                    modifiedAt,
+                    timestamp: nowIso
                 });
             }
 
-            const now = new Date().toLocaleString();
+            const nowIso = new Date().toISOString();
+            const now = new Date(nowIso).toLocaleString();
             setLastCloudSync(now);
             localStorage.setItem(`${username}_last_cloud_sync`, now);
-            hasAutoSynced.current = true; // Set gatekeeper after successful sync
+            localStorage.setItem(`${username}_last_cloud_sync_iso`, nowIso);
+            localStorage.setItem(`${username}_last_local_change_iso`, nowIso);
+            setHasAutoSynced(true); // Set gatekeeper after successful sync
             if (showToast) {
                 toast.success("Synced with Google Drive");
             }
@@ -665,21 +761,41 @@ function App() {
         setIsGoogleLoading(true);
         try {
             await ensureSubsystems();
+            const username = currentUser.username || currentUser;
+
+            // Safety check: ensure GAPI has a token
+            if (!gapi.client.getToken()) {
+                const token = await getToken(username, currentUser.isGoogle ? currentUser.profile?.email : null, true);
+                if (!token) throw new Error("Not authenticated");
+            }
+
             const syncFile = await findSyncFile();
+            const nowIso = new Date().toISOString();
+            const modifiedAt = {
+                library: localStorage.getItem(`${username}_last_local_change_library_iso`) || nowIso,
+                watchlist: localStorage.getItem(`${username}_last_local_change_watchlist_iso`) || nowIso,
+                recommendations: localStorage.getItem(`${username}_last_local_change_recommendations_iso`) || nowIso,
+                instructions: localStorage.getItem(`${username}_last_local_change_instructions_iso`) || nowIso,
+                excludedItems: localStorage.getItem(`${username}_last_local_change_excludedItems_iso`) || nowIso,
+                performanceSettings: localStorage.getItem(`${username}_last_local_change_performanceSettings_iso`) || nowIso
+            };
+
             await uploadSyncData({
-                library,
-                watchlist,
-                recommendations,
-                instructions: customInstructions,
-                excludedItems,
-                performanceSettings,
-                timestamp: new Date().toISOString()
+                library: libraryRef.current,
+                watchlist: watchlistRef.current,
+                recommendations: recommendationsRef.current,
+                instructions: instructionsRef.current,
+                excludedItems: excludedItemsRef.current,
+                performanceSettings: performanceRef.current,
+                modifiedAt,
+                timestamp: nowIso
             }, syncFile?.id);
 
-            const now = new Date().toLocaleString();
+            const now = new Date(nowIso).toLocaleString();
             setLastCloudSync(now);
-            const username = currentUser.username || currentUser;
             localStorage.setItem(`${username}_last_cloud_sync`, now);
+            localStorage.setItem(`${username}_last_cloud_sync_iso`, nowIso);
+            localStorage.setItem(`${username}_last_local_change_iso`, nowIso);
             if (showToast) {
                 toast.success("Data uploaded to Google Drive");
             }
@@ -750,8 +866,15 @@ function App() {
         if (deleteUser(username)) {
             setCurrentUser(null);
             setRecommendations([]);
+            recommendationsRef.current = []; // Update Ref
+            setLibrary([]);
+            libraryRef.current = []; // Update Ref
+            setWatchlist([]);
+            watchlistRef.current = []; // Update Ref
+            setExcludedItems([]);
+            excludedItemsRef.current = []; // Update Ref
             setActiveTab('library');
-            scrollPositions.current = { library: 0, recommendations: 0 };
+            scrollPositions.current = { library: 0, recommendations: 0, watchlist: 0 };
             setShowDeleteAccountConfirm(false);
             setShowUserMenu(false);
             toast.success("Account deleted successfully.");
@@ -791,6 +914,7 @@ function App() {
         libraryRef.current = [...libraryRef.current, newItem];
 
         setLibrary(prev => [...prev, newItem]);
+        markLocalChange('library');
         toast.success("Added to library", {
             description: title,
             action: {
@@ -820,6 +944,25 @@ function App() {
 
         setNewItemTitle('');
         setShowAddModal(false);
+    };
+
+    const isRateLimitError = (error) => {
+        const message = (error?.message || '').toLowerCase();
+        return message.includes('rate limit') || message.includes('429');
+    };
+
+    const getShortErrorMessage = (error) => {
+        if (!error) return 'Something went wrong. Please try again.';
+        if (isRateLimitError(error)) return 'Rate limit hit. Please wait and try again.';
+        if (error.code === 402) return 'Not enough credits. Use a free model, lower tokens, or add credits.';
+        const msg = (error.message || '').toLowerCase();
+        if (msg.includes('no response') || msg.includes('empty response')) {
+            return 'Model returned no response. Try another model.';
+        }
+        if (msg.includes('model') && msg.includes('incompatible')) {
+            return 'Model incompatible with provider. Pick another model.';
+        }
+        return 'AI request failed. Try again or switch model/provider.';
     };
 
     const generateInfoForItem = async (originalTitle, itemId = null, targetList = 'library') => {
@@ -865,13 +1008,16 @@ function App() {
 
                     if (exists) return prev;
 
-                    return prev.map(item => {
+                    const newList = prev.map(item => {
                         if ((item.id && item.id === itemId) || (item.title || item) === title) {
                             return newItem;
                         }
                         return item;
                     });
+                    watchlistRef.current = newList; // Update Ref
+                    return newList;
                 });
+                markLocalChange('watchlist');
             } else {
                 setLibrary(prev => {
                     const exists = prev.some(item =>
@@ -879,23 +1025,27 @@ function App() {
                         (item.id || '').toString() !== (newItem.id || '').toString()
                     );
 
+                    let newList;
                     if (exists) {
                         // If it exists with a different ID, we update the existing one
-                        return prev.map(item => {
+                        newList = prev.map(item => {
                             if ((item.title || item).toLowerCase() === newItem.title.toLowerCase()) {
                                 return { ...newItem, id: item.id }; // Keep the original ID
                             }
                             return item;
                         });
+                    } else {
+                        newList = prev.map(item => {
+                            if (((item.id || '').toString() === (itemId || '').toString()) || (item.title || item) === title) {
+                                return newItem;
+                            }
+                            return item;
+                        });
                     }
-
-                    return prev.map(item => {
-                        if (((item.id || '').toString() === (itemId || '').toString()) || (item.title || item) === title) {
-                            return newItem;
-                        }
-                        return item;
-                    });
+                    libraryRef.current = newList; // Update Ref
+                    return newList;
                 });
+                markLocalChange('library');
             }
             toast.success("Updated info", {
                 description: title
@@ -903,7 +1053,7 @@ function App() {
 
         } catch (error) {
             console.error(`Failed to generate info for ${title}:`, error);
-            toast.error("Failed to generate info");
+            toast.error(getShortErrorMessage(error));
         } finally {
             setLoadingItems(prev => Array.isArray(prev) ? prev.filter(item => item !== title) : []);
         }
@@ -1046,19 +1196,21 @@ function App() {
     };
 
     const handleExcludeItem = (item, reason) => {
-        if (!item || !item.title) return;
+        if (!item) return;
+        const title = typeof item === 'string' ? item : item.title;
+        if (!title) return;
 
         // check if already excluded
-        if (excludedItems.some(ex => ex.title.toLowerCase() === item.title.toLowerCase())) {
+        if (excludedItems.some(ex => ex.title.toLowerCase() === title.toLowerCase())) {
             toast.info("Already excluded", {
-                description: item.title
+                description: title
             });
             return;
         }
 
-        const itemTitleLower = item.title.toLowerCase();
+        const itemTitleLower = title.toLowerCase();
         let source = 'recommendations'; // default
-        let year = item.year || '';
+        let year = (typeof item !== 'string' ? item.year : '') || '';
 
         // Check source and try to get year if missing
         const libItem = library.find(i => (i.title || i).toLowerCase() === itemTitleLower);
@@ -1072,67 +1224,95 @@ function App() {
             if (!year && typeof watchItem !== 'string') year = watchItem.year || '';
         }
 
-        const newExcludedItem = {
-            id: item.id || Date.now(),
-            title: item.title,
-            year,
-            reason: reason || '',
-            source,
-            date: new Date().toISOString()
-        };
+        const newExcludedItem = typeof item === 'string'
+            ? {
+                id: Date.now(),
+                title: title,
+                year,
+                reason: reason || '',
+                source,
+                date: new Date().toISOString()
+            }
+            : {
+                ...item, // Preserve metadata (description, genres, etc.)
+                id: item.id || Date.now(),
+                reason: reason || '',
+                source,
+                date: new Date().toISOString()
+            };
 
         const newExcluded = [...excludedItems, newExcludedItem];
         setExcludedItems(newExcluded);
+        excludedItemsRef.current = newExcluded; // Update Ref
 
         // Remove from other lists
         // Remove from Library
-        if (source === 'library') {
-            setLibrary(prev => prev.filter(i => (i.title || i).toLowerCase() !== itemTitleLower));
-        }
+        setLibrary(prev => {
+            const newList = prev.filter(i => (i.title || i).toLowerCase().trim() !== itemTitleLower);
+            libraryRef.current = newList; // Update Ref
+            return newList;
+        });
 
         // Remove from Watchlist
-        if (source === 'watchlist') {
-            setWatchlist(prev => prev.filter(i => (i.title || i).toLowerCase() !== itemTitleLower));
-        }
+        setWatchlist(prev => {
+            const newList = prev.filter(i => (i.title || i).toLowerCase().trim() !== itemTitleLower);
+            watchlistRef.current = newList; // Update Ref
+            return newList;
+        });
 
         // Remove from Recommendations
-        if (recommendations.some(i => (i.title || i).toLowerCase() === itemTitleLower)) {
-            setRecommendations(prev => prev.filter(i => (i.title || i).toLowerCase() !== itemTitleLower));
-        }
+        setRecommendations(prev => {
+            const newList = prev.filter(i => (i.title || i).toLowerCase().trim() !== itemTitleLower);
+            recommendationsRef.current = newList; // Update Ref
+            return newList;
+        });
 
         toast.success("Excluded item", {
-            description: item.title
+            description: title
         });
     };
 
 
 
     const handleRestoreItem = (id) => {
-        const itemToRestore = excludedItems.find(item => item.id === id);
+        // Use loose equality for ID matching to handle string/number mismatch
+        const itemToRestore = excludedItems.find(item => item.id == id);
         if (!itemToRestore) return;
 
-        const newExcluded = excludedItems.filter(item => item.id !== id);
+        const newExcluded = excludedItems.filter(item => item.id != id);
         setExcludedItems(newExcluded);
+        excludedItemsRef.current = newExcluded; // Update Ref
 
-        // Restore logic
+        // Restore logic - preserve full object metadata
         if (itemToRestore.source === 'library') {
-            // Check if not already in library (redundancy check)
             if (!library.some(i => (i.title || i).toLowerCase() === itemToRestore.title.toLowerCase())) {
-                setLibrary(prev => [...prev, { title: itemToRestore.title, id: itemToRestore.id || Date.now() }]);
+                setLibrary(prev => {
+                    const newList = [...prev, itemToRestore];
+                    libraryRef.current = newList; // Update Ref
+                    return newList;
+                });
             }
             toast.success("Restored to Library", {
                 description: itemToRestore.title
             });
         } else if (itemToRestore.source === 'watchlist') {
             if (!watchlist.some(i => (i.title || i).toLowerCase() === itemToRestore.title.toLowerCase())) {
-                setWatchlist(prev => [...prev, { title: itemToRestore.title, id: itemToRestore.id || Date.now() }]);
+                setWatchlist(prev => {
+                    const newList = [...prev, itemToRestore];
+                    watchlistRef.current = newList; // Update Ref
+                    return newList;
+                });
             }
             toast.success("Restored to Watchlist", {
                 description: itemToRestore.title
             });
         } else if (itemToRestore.source === 'recommendations') {
             if (!recommendations.some(i => (i.title || i).toLowerCase() === itemToRestore.title.toLowerCase())) {
-                setRecommendations(prev => [...prev, { title: itemToRestore.title, id: itemToRestore.id || Date.now() }]);
+                setRecommendations(prev => {
+                    const newList = [...prev, itemToRestore];
+                    recommendationsRef.current = newList; // Update Ref
+                    return newList;
+                });
             }
             toast.success("Restored to Recommendations", {
                 description: itemToRestore.title
@@ -1154,38 +1334,55 @@ function App() {
         excludedItems.forEach(item => {
             if (item.source === 'library') {
                 if (!library.some(i => (i.title || i).toLowerCase() === item.title.toLowerCase())) {
-                    toLibrary.push({ title: item.title, id: item.id || Date.now() });
+                    toLibrary.push(item);
                 }
             } else if (item.source === 'watchlist') {
                 if (!watchlist.some(i => (i.title || i).toLowerCase() === item.title.toLowerCase())) {
-                    toWatchlist.push({ title: item.title, id: item.id || Date.now() });
+                    toWatchlist.push(item);
                 }
             } else if (item.source === 'recommendations') {
                 if (!recommendations.some(i => (i.title || i).toLowerCase() === item.title.toLowerCase())) {
-                    toRecommendations.push({ title: item.title, id: item.id || Date.now() });
+                    toRecommendations.push(item);
                 }
             }
         });
 
         if (toLibrary.length > 0) {
-            setLibrary(prev => [...prev, ...toLibrary]);
+            setLibrary(prev => {
+                const newList = [...prev, ...toLibrary];
+                libraryRef.current = newList;
+                return newList;
+            });
         }
         if (toWatchlist.length > 0) {
-            setWatchlist(prev => [...prev, ...toWatchlist]);
+            setWatchlist(prev => {
+                const newList = [...prev, ...toWatchlist];
+                watchlistRef.current = newList;
+                return newList;
+            });
         }
         if (toRecommendations.length > 0) {
-            setRecommendations(prev => [...prev, ...toRecommendations]);
+            setRecommendations(prev => {
+                const newList = [...prev, ...toRecommendations];
+                recommendationsRef.current = newList;
+                return newList;
+            });
         }
 
         setExcludedItems([]);
-        toast.success(`Restored ${excludedItems.length} items to their collections!`);
+        excludedItemsRef.current = []; // Update Ref
+        toast.success(`Restored ${excludedItems.length} items`);
     };
 
     const handleClearExcludedItem = (id) => {
-        const itemToRemove = excludedItems.find(item => item.id === id);
+        const itemToRemove = excludedItems.find(item => item.id == id);
         if (!itemToRemove) return;
 
-        setExcludedItems(prev => prev.filter(item => item.id !== id));
+        setExcludedItems(prev => {
+            const newList = prev.filter(item => item.id != id);
+            excludedItemsRef.current = newList; // Update Ref
+            return newList;
+        });
         toast.success("Permanently removed from excluded list", {
             description: itemToRemove.title
         });
@@ -1195,13 +1392,18 @@ function App() {
         if (excludedItems.length === 0) return;
         const count = excludedItems.length;
         setExcludedItems([]);
+        excludedItemsRef.current = []; // Update Ref
         toast.success(`Permanently cleared ${count} excluded items!`);
     };
 
     const handleUpdateExcludedItem = (id, updates) => {
-        setExcludedItems(prev => prev.map(item =>
-            item.id === id ? { ...item, ...updates } : item
-        ));
+        setExcludedItems(prev => {
+            const newList = prev.map(item =>
+                item.id === id || item.id == id ? { ...item, ...updates } : item
+            );
+            excludedItemsRef.current = newList; // Update Ref
+            return newList;
+        });
     };
 
     // Filter lists based on excluded items
@@ -1238,7 +1440,11 @@ function App() {
                     newRecommendations = importedData.recommendations || [];
 
                     if (importedData.instructions) {
-                        setCustomInstructions(prev => Array.from(new Set([...prev, ...importedData.instructions])));
+                        setCustomInstructions(prev => {
+                            const newList = Array.from(new Set([...prev, ...importedData.instructions]));
+                            instructionsRef.current = newList; // Update Ref
+                            return newList;
+                        });
                     }
                     if (importedData.excludedItems) {
                         setExcludedItems(prev => {
@@ -1248,11 +1454,17 @@ function App() {
                                     currentMap.set((item.title || item).toLowerCase().trim(), item);
                                 }
                             });
-                            return Array.from(currentMap.values());
+                            const newList = Array.from(currentMap.values());
+                            excludedItemsRef.current = newList; // Update Ref
+                            return newList;
                         });
                     }
                     if (importedData.performanceSettings) {
-                        setPerformanceSettings(prev => ({ ...prev, ...importedData.performanceSettings }));
+                        setPerformanceSettings(prev => {
+                            const newSettings = { ...prev, ...importedData.performanceSettings };
+                            performanceRef.current = newSettings; // Update Ref
+                            return newSettings;
+                        });
                     }
                 }
 
@@ -1274,8 +1486,11 @@ function App() {
                 const mergedRecommendations = mergeLists(recommendations, newRecommendations);
 
                 setLibrary(mergedLibrary);
+                libraryRef.current = mergedLibrary; // Update Ref
                 setWatchlist(mergedWatchlist);
+                watchlistRef.current = mergedWatchlist; // Update Ref
                 setRecommendations(mergedRecommendations);
+                recommendationsRef.current = mergedRecommendations; // Update Ref
 
                 // Save to persistence
                 if (currentUser) {
@@ -1326,12 +1541,15 @@ function App() {
 
         setLibrary((prev) => {
             const idx = prev.findIndex((item) =>
-                (id && item.id === id) || (title && (item.title || item)?.toLowerCase() === title.toLowerCase())
+                (id && item.id == id) || (title && (item.title || item)?.toLowerCase().trim() === title.toLowerCase().trim())
             );
             if (idx === -1) return prev;
             const newLib = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+            libraryRef.current = newLib; // Update Ref
             return newLib;
         });
+
+        markLocalChange('library');
 
         if (removedItem) {
             toast.success("Removed from library", {
@@ -1407,7 +1625,10 @@ function App() {
             ? { id: Date.now().toString(), title: item, genres: [], description: '' }
             : { ...item, id: (item.id || Date.now()).toString() };
 
+        // Update ref IMMEDIATELY
+        watchlistRef.current = [...watchlistRef.current, newItem];
         setWatchlist(prev => [...prev, newItem]);
+        markLocalChange('watchlist');
         if (showToast) {
             toast.success("Added to watchlist", {
                 description: title,
@@ -1433,11 +1654,15 @@ function App() {
             (normalizedTitle && (item.title || item).toLowerCase().trim() === normalizedTitle)
         );
 
-        setWatchlist(prev => prev.filter(item => {
-            if (id && item.id === id) return false;
-            if (normalizedTitle && (item.title || item).toLowerCase().trim() === normalizedTitle) return false;
-            return true;
-        }));
+        setWatchlist(prev => {
+            const newList = prev.filter(item => {
+                if (id && item.id == id) return false;
+                if (normalizedTitle && (item.title || item).toLowerCase().trim() === normalizedTitle) return false;
+                return true;
+            });
+            watchlistRef.current = newList; // Update Ref
+            return newList;
+        });
 
         if (title && showToast) {
             toast.success("Removed from watchlist", {
@@ -1476,13 +1701,19 @@ function App() {
 
     const moveToWatchlist = (item, showToast = true) => {
         const title = item.title || item;
-        // Silent remove from library (bypass confirmation)
-        setLibrary(prev => prev.filter(w => {
-            if (item.id && w.id === item.id) return false;
-            const normalizedTitle = title.toLowerCase().trim();
-            if ((w.title || w).toLowerCase().trim() === normalizedTitle) return false;
-            return true;
-        }));
+        const normalizedTitle = title.toLowerCase().trim();
+
+        // Silent remove from library
+        setLibrary(prev => {
+            const newList = prev.filter(w => {
+                if (item.id && w.id == item.id) return false;
+                if ((w.title || w).toLowerCase().trim() === normalizedTitle) return false;
+                return true;
+            });
+            libraryRef.current = newList; // Update ref for sync
+            return newList;
+        });
+        markLocalChange('library');
 
         // Add to watchlist (silent)
         addToWatchlist(item, false);
@@ -1494,13 +1725,22 @@ function App() {
                 action: {
                     label: 'Undo',
                     onClick: () => {
-                        setWatchlist(prev => prev.filter(w => {
-                            if (item.id && w.id === item.id) return false;
-                            const normalizedTitle = title.toLowerCase().trim();
-                            if ((w.title || w).toLowerCase().trim() === normalizedTitle) return false;
-                            return true;
-                        }));
-                        setLibrary(prev => [...prev, item]);
+                        setWatchlist(prev => {
+                            const newList = prev.filter(w => {
+                                if (item.id && w.id == item.id) return false;
+                                if ((w.title || w).toLowerCase().trim() === normalizedTitle) return false;
+                                return true;
+                            });
+                            watchlistRef.current = newList;
+                            return newList;
+                        });
+                        markLocalChange('watchlist');
+                        setLibrary(prev => {
+                            const newList = [...prev, item];
+                            libraryRef.current = newList;
+                            return newList;
+                        });
+                        markLocalChange('library');
                         toast.success("Moved back to library", {
                             description: title
                         });
@@ -1513,20 +1753,27 @@ function App() {
 
     const moveToLibrary = (item, showToast = true) => {
         const title = item.title || item;
-        // Remove from watchlist
-        removeFromWatchlist(item.id, null, false); // Don't show toast
-        // Add to library
         const normalizedTitle = title.toLowerCase().trim();
+
+        // Remove from watchlist - Pass title to ensure removal works for items without IDs
+        removeFromWatchlist(item.id, title, false);
+
+        // Add to library
         const alreadyInLibrary = library.some(w =>
             (w.title || w).toLowerCase().trim() === normalizedTitle
         );
+
         if (!alreadyInLibrary) {
             const newItem = typeof item === 'string'
                 ? { id: Date.now().toString(), title: item, genres: [], description: '' }
                 : { ...item, id: (item.id || Date.now()).toString() };
-            setLibrary(prev => [...prev, newItem]);
-            // Update ref
-            libraryRef.current = [...libraryRef.current, newItem];
+
+            setLibrary(prev => {
+                const newList = [...prev, newItem];
+                libraryRef.current = newList; // Update ref for sync
+                return newList;
+            });
+            markLocalChange('library');
         }
 
         if (showToast) {
@@ -1536,21 +1783,23 @@ function App() {
                     label: 'Undo',
                     onClick: () => {
                         // Remove from library
-                        setLibrary(prev => prev.filter(w => {
-                            if (item.id && w.id === item.id) return false;
-                            const normalizedTitle = title.toLowerCase().trim();
-                            if ((w.title || w).toLowerCase().trim() === normalizedTitle) return false;
-                            return true;
-                        }));
-                        // Update ref
-                        libraryRef.current = libraryRef.current.filter(w => {
-                            if (item.id && w.id === item.id) return false;
-                            const normalizedTitle = title.toLowerCase().trim();
-                            if ((w.title || w).toLowerCase().trim() === normalizedTitle) return false;
-                            return true;
+                        setLibrary(prev => {
+                            const newList = prev.filter(w => {
+                                if (item.id && w.id == item.id) return false;
+                                if ((w.title || w).toLowerCase().trim() === normalizedTitle) return false;
+                                return true;
+                            });
+                            libraryRef.current = newList;
+                            return newList;
                         });
-                        // Restore to watchlist
-                        setWatchlist(prev => [...prev, item]);
+                        markLocalChange('library');
+                        // Restore to watchlist (with full metadata)
+                        setWatchlist(prev => {
+                            const newList = [...prev, item];
+                            watchlistRef.current = newList;
+                            return newList;
+                        });
+                        markLocalChange('watchlist');
                         toast.success("Moved back to watchlist", {
                             description: title
                         });
@@ -1649,7 +1898,7 @@ function App() {
                 // Ignore AbortError as it's handled in handleCancelGeneration
                 return;
             }
-            toast.error(error.message);
+            toast.error(getShortErrorMessage(error));
         } finally {
             if (abortControllerRef.current === controller) {
                 abortControllerRef.current = null;
@@ -1658,6 +1907,45 @@ function App() {
         }
     };
 
+    const removeFromRecommendations = useCallback((itemOrTitle, showToast = true) => {
+        const title = typeof itemOrTitle === 'string' ? itemOrTitle : itemOrTitle?.title;
+        if (!title) return;
+
+        const normalizedTitle = title.toLowerCase().trim();
+        const removedItem = recommendations.find(item =>
+            (item.title || item).toLowerCase().trim() === normalizedTitle
+        );
+
+        setRecommendations(prev => {
+            const newList = prev.filter(item => (item.title || item).toLowerCase().trim() !== normalizedTitle);
+            recommendationsRef.current = newList; // Update Ref
+            return newList;
+        });
+
+        markLocalChange('recommendations');
+
+        if (!removedItem || !showToast) return;
+
+        toast.success("Removed from picks", {
+            description: title,
+            action: {
+                label: 'Undo',
+                onClick: () => {
+                    setRecommendations(prev => {
+                        const exists = prev.some(item =>
+                            (item.title || item).toLowerCase().trim() === normalizedTitle
+                        );
+                        if (exists) return prev;
+                        const newList = [...prev, removedItem];
+                        recommendationsRef.current = newList; // Update Ref
+                        return newList;
+                    });
+                }
+            },
+            duration: 5000
+        });
+    }, [recommendations]);
+
     const handleClear = () => {
         setShowClearConfirm(true);
     };
@@ -1665,6 +1953,8 @@ function App() {
     const confirmClear = (mode = 'all') => {
         if (mode === 'all') {
             setRecommendations([]);
+            recommendationsRef.current = []; // Update Ref
+            markLocalChange('recommendations');
             toast.success("All recommendations cleared!");
         } else if (mode === 'added') {
             const libraryTitlesLower = library.map(a => (a.title || a).toLowerCase().trim());
@@ -1680,6 +1970,8 @@ function App() {
                 toast.info("No items were matched in Library or Watchlist.");
             } else {
                 setRecommendations(filtered);
+                recommendationsRef.current = filtered; // Update Ref
+                markLocalChange('recommendations');
                 toast.success(`Removed ${beforeCount - filtered.length} already added items!`);
             }
         }
@@ -1694,6 +1986,17 @@ function App() {
         setWatchlist([]);
         setRecommendations([]);
         setExcludedItems([]);
+        // Update all refs
+        libraryRef.current = [];
+        watchlistRef.current = [];
+        recommendationsRef.current = [];
+        excludedItemsRef.current = []; // Update Ref
+        // Mark all as changed to trigger cloud sync
+        markLocalChange('library');
+        markLocalChange('watchlist');
+        markLocalChange('recommendations');
+        markLocalChange('excludedItems');
+
         scrollPositions.current = { library: 0, recommendations: 0, watchlist: 0 };
         setShowClearAllDataConfirm(false);
         setShowUserMenu(false);
@@ -1702,23 +2005,27 @@ function App() {
 
     const updateLibraryNote = useCallback((id, note) => {
         setLibrary((prev) => {
-            return prev.map((item) => {
-                if (item.id === id) {
+            const newList = prev.map((item) => {
+                if (item.id === id || item.id == id) {
                     return { ...item, note };
                 }
                 return item;
             });
+            libraryRef.current = newList; // Update Ref
+            return newList;
         });
     }, []);
 
     const updateWatchlistNote = useCallback((id, note) => {
         setWatchlist((prev) => {
-            return prev.map((item) => {
-                if (item.id === id) {
+            const newList = prev.map((item) => {
+                if (item.id === id || item.id == id) {
                     return { ...item, note };
                 }
                 return item;
             });
+            watchlistRef.current = newList; // Update Ref
+            return newList;
         });
     }, []);
 
@@ -1753,6 +2060,7 @@ function App() {
 
         if (JSON.stringify(newInst) !== JSON.stringify(customInstructions)) {
             setCustomInstructions(newInst);
+            instructionsRef.current = newInst; // Update Ref
             const username = currentUser.username || currentUser;
             saveUserInstructions(username, newInst);
             toast.success("Default instructions restored to the top");
@@ -2249,6 +2557,7 @@ function App() {
                                                 recommendations={filteredRecommendations}
                                                 onWatched={addToLibrary}
                                                 onRemove={removeFromLibrary}
+                                                onRemovePick={removeFromRecommendations}
                                                 library={library}
                                                 watchlist={watchlist}
                                                 onAddToWatchlist={addToWatchlist}
@@ -2866,7 +3175,9 @@ function App() {
                                 </button>
                                 <button
                                     onClick={() => {
-                                        setCustomInstructions(customInstructions.filter((_, i) => i !== instructionToDelete));
+                                        const newList = customInstructions.filter((_, i) => i !== instructionToDelete);
+                                        setCustomInstructions(newList);
+                                        instructionsRef.current = newList; // Update Ref
                                         setShowInstructionDeleteConfirm(false);
                                         setInstructionToDelete(null);
                                         toast.success("Instruction removed");
@@ -2916,6 +3227,7 @@ function App() {
                                 <button
                                     onClick={() => {
                                         setCustomInstructions([]);
+                                        instructionsRef.current = []; // Update Ref
                                         setShowInstructionDeleteAllConfirm(false);
                                         toast.success("All instructions cleared");
                                     }}
@@ -2987,7 +3299,9 @@ function App() {
                                             newInsts[instructionToEdit.index] = trimmedValue;
                                         }
 
-                                        setCustomInstructions(newInsts.filter(i => i));
+                                        const finalInsts = newInsts.filter(i => i);
+                                        setCustomInstructions(finalInsts);
+                                        instructionsRef.current = finalInsts; // Update Ref
                                         setShowInstructionEditModal(false);
                                         toast.success(instructionToEdit.index === null ? "Instruction added" : "Instruction updated");
                                     }}
