@@ -2681,11 +2681,11 @@ function App() {
                                     const movedTabs = -dragDelta / carouselWidth;
                                     const velocity = info.velocity.x;
 
-                                    // Switch if released more than 30% of a tab OR high velocity
+                                    // Switch if released more than 10% of a tab OR high velocity
                                     let targetIndex = currentIndex;
-                                    if (movedTabs > 0.3 || velocity < -500) {
+                                    if (movedTabs > 0.1 || velocity < -500) {
                                         targetIndex = Math.min(currentIndex + 1, TABS.length - 1);
-                                    } else if (movedTabs < -0.3 || velocity > 500) {
+                                    } else if (movedTabs < -0.1 || velocity > 500) {
                                         targetIndex = Math.max(currentIndex - 1, 0);
                                     }
 
