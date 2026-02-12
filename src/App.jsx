@@ -2596,6 +2596,7 @@ function App() {
                         <div ref={carouselViewportRef} className="w-full flex-grow overflow-x-hidden relative mt-20">
                             <motion.div
                                 drag="x"
+                                dragDirectionLock
                                 dragMomentum={false}
                                 dragConstraints={{
                                     left: -((TABS.length - 1) * carouselWidth),
@@ -2608,23 +2609,25 @@ function App() {
                                 }}
                                 onDragEnd={(e, info) => {
                                     const currentIndex = TABS.indexOf(activeTabRef.current);
-                                    const expectedX = -(currentIndex * carouselWidth);
                                     const absX = Math.abs(info.offset.x);
                                     const absY = Math.abs(info.offset.y);
 
-                                    // For diagonal/vertical gestures, reset instantly (no snap animation).
-                                    if (absY > absX) {
-                                        carouselX.set(expectedX);
+                                    // If gesture is clearly vertical/diagonal, snap back smoothly
+                                    // Increased threshold and added minimum distance to avoid jitter
+                                    if (absY > absX * 1.2 && absY > 10) {
+                                        animateCarouselToIndex(currentIndex);
                                         return;
                                     }
 
                                     const dragDelta = carouselX.get() - dragStartXRef.current;
                                     const movedTabs = -dragDelta / carouselWidth;
-                                    // Switch if released more than 30% of a tab.
+                                    const velocity = info.velocity.x;
+
+                                    // Switch if released more than 30% of a tab OR high velocity
                                     let targetIndex = currentIndex;
-                                    if (movedTabs > 0.3) {
+                                    if (movedTabs > 0.3 || velocity < -500) {
                                         targetIndex = Math.min(currentIndex + 1, TABS.length - 1);
-                                    } else if (movedTabs < -0.3) {
+                                    } else if (movedTabs < -0.3 || velocity > 500) {
                                         targetIndex = Math.max(currentIndex - 1, 0);
                                     }
 
