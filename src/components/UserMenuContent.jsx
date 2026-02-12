@@ -223,13 +223,31 @@ export default function UserMenuContent({
 
             <div className="flex items-center gap-1">
                 {!showBack && (
-                    <button
-                        onClick={onLogout}
-                        title="Log out"
-                        className="p-2 rounded-xl text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-all"
-                    >
-                        <LogOut size={18} />
-                    </button>
+                    <>
+                        <button
+                            onClick={() => setConfirmConfig({
+                                title: "Hard Refresh?",
+                                message: "This will reload the page and clear temporary states. Unsaved changes might be lost.",
+                                actionLabel: "Refresh",
+                                isDanger: false,
+                                onConfirm: () => {
+                                    window.location.reload();
+                                    setConfirmConfig(null);
+                                }
+                            })}
+                            title="Hard Refresh"
+                            className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+                        >
+                            <RefreshCw size={18} />
+                        </button>
+                        <button
+                            onClick={onLogout}
+                            title="Log out"
+                            className="p-2 rounded-xl text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                        >
+                            <LogOut size={18} />
+                        </button>
+                    </>
                 )}
                 <button
                     onClick={onClose}
@@ -1309,9 +1327,10 @@ export default function UserMenuContent({
                             className="absolute inset-0 bg-black/80 backdrop-blur-sm"
                         />
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            variants={modalVariants}
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
                             className="relative w-full max-w-sm bg-[#1a1a2e] border border-white/10 rounded-2xl shadow-2xl overflow-hidden p-6"
                         >
                             <h3 className="text-lg font-bold text-white mb-2">{confirmConfig.title}</h3>

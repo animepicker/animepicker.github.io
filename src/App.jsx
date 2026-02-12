@@ -110,6 +110,9 @@ function App() {
     });
 
     const scrollPositions = useRef({ library: 0, recommendations: 0, watchlist: 0 });
+    const recScrollRef = useRef(null);
+    const watchScrollRef = useRef(null);
+    const libScrollRef = useRef(null);
     const activeTabRef = useRef(activeTab);
     const tabsRef = useRef(null);
     const carouselViewportRef = useRef(null);
@@ -499,6 +502,13 @@ function App() {
     // Keep activeTabRef in sync
     useEffect(() => {
         activeTabRef.current = activeTab;
+
+        // Delay removing is-dragging to allow slide animation to complete
+        const timer = setTimeout(() => {
+            carouselViewportRef.current?.classList.remove('is-dragging');
+        }, 300);
+
+        return () => clearTimeout(timer);
     }, [activeTab]);
 
     useEffect(() => {
@@ -528,19 +538,47 @@ function App() {
     }, [isModalOpen, deleteConfirmation.isOpen]);
 
     // Restore scroll position when tab changes
+    // Restore scroll position when tab changes
     useLayoutEffect(() => {
+        // restore scroll for the NEW active tab
         const savedPosition = scrollPositions.current[activeTab];
-        if (savedPosition !== undefined) {
-            window.scrollTo({ top: savedPosition, behavior: 'auto' });
+
+        // We need to wait for the element to be available? 
+        // usually strictly synchronous in layout effect if the element is mounted. 
+        // But with Framer Motion or conditional rendering, it might be tricky.
+        // However, in this app, all 3 tabs seem to be mounted in the carousel, just translated.
+        // So refs should be available.
+
+        let targetRef = null;
+        if (activeTab === 'recommendations') targetRef = recScrollRef;
+        else if (activeTab === 'watchlist') targetRef = watchScrollRef;
+        else if (activeTab === 'library') targetRef = libScrollRef;
+
+        if (targetRef && targetRef.current && savedPosition !== undefined) {
+            targetRef.current.scrollTop = savedPosition;
         }
     }, [activeTab]);
 
     const scrollToTop = () => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        let targetRef = null;
+        if (activeTab === 'recommendations') targetRef = recScrollRef;
+        else if (activeTab === 'watchlist') targetRef = watchScrollRef;
+        else if (activeTab === 'library') targetRef = libScrollRef;
+
+        if (targetRef && targetRef.current) {
+            targetRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     };
 
     const scrollToBottom = () => {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        let targetRef = null;
+        if (activeTab === 'recommendations') targetRef = recScrollRef;
+        else if (activeTab === 'watchlist') targetRef = watchScrollRef;
+        else if (activeTab === 'library') targetRef = libScrollRef;
+
+        if (targetRef && targetRef.current) {
+            targetRef.current.scrollTo({ top: targetRef.current.scrollHeight, behavior: 'smooth' });
+        }
     };
 
     // Initial load: restore Google sync (session is already restored in state)
@@ -572,22 +610,21 @@ function App() {
 
     // Scroll listener for back to top button only
     // Floating bar is now always visible
+    // Scroll listener for back to top button
+    const handleScroll = useCallback((e) => {
+        const target = e.target;
+        if (!target) return;
+
+        setShowScrollTop(target.scrollTop > 300);
+
+        // Detect if near bottom of container (within 200px)
+        const nearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 200;
+        setShowScrollBottom(!nearBottom);
+    }, []);
+
+    // Always show floating bar
     useEffect(() => {
-        const handleScroll = () => {
-            setShowScrollTop(window.scrollY > 300);
-
-            // Detect if near bottom of page (within 200px)
-            const nearBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 200;
-            setShowScrollBottom(!nearBottom);
-        };
-
-        window.addEventListener('scroll', handleScroll);
-        handleScroll(); // Initial check
-
-        // Always show floating bar
         setShowFloatingBar(true);
-
-        return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
     // Google Drive Sync Handlers
@@ -877,8 +914,21 @@ function App() {
 
 
     const handleTabSwitch = (newTab) => {
-        // Use ref to check against current state even if closure is stale
+        // Did we change tabs?
         if (newTab === activeTabRef.current) return;
+
+        // 1. Save current tab's scroll position
+        const currentTab = activeTabRef.current;
+        let currentRef = null;
+        if (currentTab === 'recommendations') currentRef = recScrollRef;
+        else if (currentTab === 'watchlist') currentRef = watchScrollRef;
+        else if (currentTab === 'library') currentRef = libScrollRef;
+
+        if (currentRef && currentRef.current) {
+            scrollPositions.current[currentTab] = currentRef.current.scrollTop;
+        }
+
+        // 2. Switch
         activeTabRef.current = newTab;
         setActiveTab(newTab);
     };
@@ -2061,7 +2111,9 @@ function App() {
             }
         }
 
-        scrollPositions.current['recommendations'] = 0;
+        if (scrollPositions.current['recommendations'] !== undefined) {
+            scrollPositions.current['recommendations'] = 0;
+        }
         setShowClearConfirm(false);
     };
 
@@ -2496,7 +2548,7 @@ function App() {
                 )}
             </AnimatePresence>
 
-            <div className={`relative z-10 w-full flex flex-col items-center px-4 ${currentUser ? 'py-12' : 'min-h-screen justify-center'}`}>
+            <div className={`relative z-10 w-full flex flex-col items-center px-4 ${currentUser ? 'min-h-screen' : 'min-h-screen justify-center'}`}>
                 {currentUser ? (
                     <>
                         {/* Tab Navigation - FIXED */}
@@ -2593,7 +2645,7 @@ function App() {
                         </div>
 
                         {/* Content Area - Carousel for smooth swiping */}
-                        <div ref={carouselViewportRef} className="w-full flex-grow overflow-x-hidden relative mt-20">
+                        <div ref={carouselViewportRef} className="w-[calc(100%+2rem)] -mx-4 flex-grow overflow-x-hidden relative h-screen">
                             <motion.div
                                 drag="x"
                                 dragDirectionLock
@@ -2607,6 +2659,11 @@ function App() {
                                     stopCarouselAnimation();
                                     dragStartXRef.current = carouselX.get();
                                 }}
+                                onDirectionLock={(axis) => {
+                                    if (axis === 'x') {
+                                        carouselViewportRef.current?.classList.add('is-dragging');
+                                    }
+                                }}
                                 onDragEnd={(e, info) => {
                                     const currentIndex = TABS.indexOf(activeTabRef.current);
                                     const absX = Math.abs(info.offset.x);
@@ -2615,6 +2672,7 @@ function App() {
                                     // If gesture is clearly vertical/diagonal, snap back smoothly
                                     // Increased threshold and added minimum distance to avoid jitter
                                     if (absY > absX * 1.2 && absY > 10) {
+                                        setTimeout(() => carouselViewportRef.current?.classList.remove('is-dragging'), 300);
                                         animateCarouselToIndex(currentIndex);
                                         return;
                                     }
@@ -2635,13 +2693,19 @@ function App() {
                                         handleTabSwitch(TABS[targetIndex]);
                                     } else {
                                         animateCarouselToIndex(currentIndex);
+                                        // Tab hasn't changed, so manual cleanup required
+                                        setTimeout(() => carouselViewportRef.current?.classList.remove('is-dragging'), 300);
                                     }
                                 }}
                                 className="carousel-gesture flex w-full"
                                 style={{ x: carouselX, touchAction: 'pan-y' }}
                             >
                                 {/* Tab 1: Recommendations */}
-                                <div className="w-full shrink-0 h-[calc(100vh-5rem)] overflow-y-auto custom-scrollbar pb-32">
+                                <div
+                                    ref={recScrollRef}
+                                    onScroll={handleScroll}
+                                    className={`w-full shrink-0 h-screen overflow-x-hidden overflow-y-auto ${activeTab !== 'recommendations' ? 'scrollbar-hidden' : ''} custom-scrollbar pb-32 px-4 pt-36`}
+                                >
                                     {filteredRecommendations.length === 0 ? (
                                         <div className="text-center py-16 relative overflow-hidden">
                                             <AnimatePresence mode="wait">
@@ -2720,7 +2784,11 @@ function App() {
                                 </div>
 
                                 {/* Tab 2: Watchlist */}
-                                <div className="w-full shrink-0 h-[calc(100vh-5rem)] overflow-y-auto custom-scrollbar pb-32">
+                                <div
+                                    ref={watchScrollRef}
+                                    onScroll={handleScroll}
+                                    className={`w-full shrink-0 h-screen overflow-x-hidden overflow-y-auto ${activeTab !== 'watchlist' ? 'scrollbar-hidden' : ''} custom-scrollbar pb-32 px-4 pt-36`}
+                                >
                                     <WatchlistDisplay
                                         watchlist={filteredWatchlist}
                                         library={library}
@@ -2742,7 +2810,11 @@ function App() {
                                 </div>
 
                                 {/* Tab 3: Library */}
-                                <div className="w-full shrink-0 h-[calc(100vh-5rem)] overflow-y-auto custom-scrollbar pb-32">
+                                <div
+                                    ref={libScrollRef}
+                                    onScroll={handleScroll}
+                                    className={`w-full shrink-0 h-screen overflow-x-hidden overflow-y-auto ${activeTab !== 'library' ? 'scrollbar-hidden' : ''} custom-scrollbar pb-32 px-4 pt-36`}
+                                >
                                     <LibraryDisplay
                                         library={filteredLibrary}
                                         onRemove={removeFromLibrary}

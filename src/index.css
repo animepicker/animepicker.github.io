@@ -82,7 +82,6 @@
 
 html {
   overflow-x: hidden;
-  scrollbar-gutter: stable;
 }
 
 body {
@@ -109,8 +108,11 @@ body {
 /* Custom Scrollbar */
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 14px;
-  /* Increased total width for hover area */
+  width: 8px;
+}
+
+.custom-scrollbar {
+  scrollbar-gutter: stable;
 }
 
 ::-webkit-scrollbar-track {
@@ -118,9 +120,9 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.15);
   border-radius: 20px;
-  border: 4px solid transparent;
+  border: 2px solid transparent;
   /* Creates padding around thumb */
   background-clip: content-box;
   /* Only color the content, not border */
@@ -128,25 +130,22 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-  border: 2px solid transparent;
+  background-color: rgba(255, 255, 255, 0.4);
+  border: 1px solid transparent;
   /* Expands thumb by reducing border width */
 }
 
-/* Mobile: Let native OS handle scrollbar (usually auto-hides) */
+/* Mobile: thin scrollbar that follows the same styling */
 @media (max-width: 768px) {
   ::-webkit-scrollbar {
-    display: none;
-    /* Hide scrollbar for Chrome/Safari/Opera */
+    width: 4px;
   }
+}
 
-  /* Hide scrollbar for IE, Edge and Firefox */
-  html,
-  body,
-  .custom-scrollbar {
-    -ms-overflow-style: none;
-    /* IE and Edge */
-    scrollbar-width: none;
-    /* Firefox */
-  }
+.scrollbar-hidden::-webkit-scrollbar-thumb {
+  background-color: transparent !important;
+}
+
+.is-dragging .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: transparent !important;
 }
