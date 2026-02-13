@@ -3,6 +3,7 @@ import { motion, AnimatePresence, animate, useMotionValue } from 'framer-motion'
 import LibraryDisplay from './components/LibraryDisplay';
 import RecommendationDisplay from './components/RecommendationDisplay';
 import WatchlistDisplay from './components/WatchlistDisplay';
+import DetailsModal from './components/DetailsModal';
 import AboutContent from './components/AboutContent';
 import AuthModal from './components/AuthModal';
 import UserMenuContent from './components/UserMenuContent';
@@ -193,6 +194,13 @@ function App() {
     const abortControllerRef = useRef(null);
     const [showFloatingBar, setShowFloatingBar] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
+
+    // Details Modal State (Lifted from components)
+    const [detailsModalState, setDetailsModalState] = useState({
+        isOpen: false,
+        item: null,
+        source: null // 'recommendations', 'watchlist', 'library'
+    });
     const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, id: null, title: null, type: 'library' });
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -1046,6 +1054,8 @@ function App() {
             generateInfoForItem(title, newItem.id);
         }
     }, [apiKey]);
+
+
 
     const handleQuickAdd = (e) => {
         e.preventDefault();
@@ -2228,6 +2238,78 @@ function App() {
         }
     };
 
+    // Details Modal Handlers
+    const handleOpenDetails = useCallback((item, source) => {
+        setDetailsModalState({
+            isOpen: true,
+            item,
+            source
+        });
+        setIsModalOpen(true);
+    }, []);
+
+    const handleCloseDetails = useCallback(() => {
+        setDetailsModalState(prev => ({ ...prev, isOpen: false }));
+        setIsModalOpen(false);
+    }, []);
+
+    const handleDetailsAction = useCallback(() => {
+        const { item, source } = detailsModalState;
+        if (!item) return;
+
+        if (source === 'recommendations') {
+            const inWatchlist = isInWatchlist(item.title);
+            if (inWatchlist) {
+                removeFromWatchlist(null, item.title, false);
+            } else {
+                addToWatchlist(item, false);
+            }
+        } else if (source === 'watchlist') {
+            const inLibrary = isInLibrary(item.title);
+            if (inLibrary) {
+                moveToWatchlist(item, false); // Undo move to library
+            } else {
+                moveToLibrary(item, false);
+            }
+        } else if (source === 'library') {
+            const inWatchlist = isInWatchlist(item.title);
+            if (inWatchlist) {
+                moveToLibrary(item, false); // Undo move to watchlist
+            } else {
+                moveToWatchlist(item, false);
+            }
+        }
+    }, [detailsModalState, isInWatchlist, isInLibrary, removeFromWatchlist, addToWatchlist, moveToWatchlist, moveToLibrary]);
+
+    const getDetailsModalProps = () => {
+        const { item, source } = detailsModalState;
+        if (!item) return {};
+
+        const inWatchlist = isInWatchlist(item.title);
+        const inLibrary = isInLibrary(item.title);
+
+        if (source === 'recommendations') {
+            return {
+                actionLabel: inWatchlist ? "Remove" : "Add to Watchlist",
+                actionIcon: inWatchlist ? <Heart size={18} className="fill-current" /> : <Heart size={18} />,
+                isActionDisabled: inLibrary
+            };
+        } else if (source === 'watchlist') {
+            return {
+                actionLabel: inLibrary ? "Undo Move" : "Move to Library",
+                actionIcon: inLibrary ? <RefreshCw size={18} /> : <LayoutGrid size={18} />,
+                isActionDisabled: false
+            };
+        } else if (source === 'library') {
+            return {
+                actionLabel: inWatchlist ? "Undo Move" : "Move to Watchlist",
+                actionIcon: inWatchlist ? <RefreshCw size={18} /> : <Heart size={18} />,
+                isActionDisabled: false
+            };
+        }
+        return {};
+    };
+
     return (
         <div className={`relative bg-[#0a0a0f] h-screen overflow-hidden ${!performanceSettings.enableBlur ? 'disable-blur' : ''} ${!performanceSettings.enhancedMotion ? 'reduced-motion' : ''}`} style={{ overflowX: 'clip' }}>
             {/* Added padding-bottom to avoid overlap with Quick Bar */}
@@ -2772,13 +2854,11 @@ function App() {
                                             onRemoveFromWatchlist={removeFromWatchlist}
                                             onGenerate={handleGenerate}
                                             onClear={handleClear}
-                                            onModalStateChange={setIsModalOpen}
-                                            onExclude={openExcludeModal}
-                                            enhancedMotion={performanceSettings.enhancedMotion}
                                             searchQuery={recommendationsSearchQuery}
                                             onSearchChange={setRecommendationsSearchQuery}
                                             isInLibrary={isInLibrary}
                                             isInWatchlist={isInWatchlist}
+                                            onOpenDetails={(item) => handleOpenDetails(item, 'recommendations')}
                                         />
                                     )}
                                 </div>
@@ -2799,13 +2879,10 @@ function App() {
                                         isInLibrary={isInLibrary}
                                         isInWatchlist={isInWatchlist}
                                         onImport={() => importFileRef.current.click()}
-                                        onModalStateChange={setIsModalOpen}
-                                        loadingItems={loadingItems}
-                                        searchQuery={watchlistSearchQuery}
-                                        onSearchChange={setWatchlistSearchQuery}
                                         onGenerateInfo={generateInfoForItem}
                                         onExclude={openExcludeModal}
                                         enhancedMotion={performanceSettings.enhancedMotion}
+                                        onOpenDetails={(item) => handleOpenDetails(item, 'watchlist')}
                                     />
                                 </div>
 
@@ -2827,11 +2904,9 @@ function App() {
                                         onUpdateNote={updateItemNote}
                                         isInLibrary={isInLibrary}
                                         isInWatchlist={isInWatchlist}
-                                        onModalStateChange={setIsModalOpen}
-                                        onMoveToWatchlist={moveToWatchlist}
-                                        onMoveToLibrary={moveToLibrary}
                                         onExclude={openExcludeModal}
                                         enhancedMotion={performanceSettings.enhancedMotion}
+                                        onOpenDetails={(item) => handleOpenDetails(item, 'library')}
                                     />
                                 </div>
                             </motion.div>
@@ -3520,6 +3595,17 @@ function App() {
                     </div>
                 )}
             </AnimatePresence>
+
+            <DetailsModal
+                isOpen={detailsModalState.isOpen}
+                onClose={handleCloseDetails}
+                item={detailsModalState.item}
+                onAction={handleDetailsAction}
+                onUpdateNote={updateItemNote}
+                enhancedMotion={performanceSettings.enhancedMotion}
+                showNotes={detailsModalState.source !== 'recommendations'}
+                {...getDetailsModalProps()}
+            />
 
 
 

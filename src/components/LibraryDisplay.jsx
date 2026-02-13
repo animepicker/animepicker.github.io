@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, memo, useCallback, useMemo } from 'react';
 import { Tag, X, PlayCircle, RefreshCw, Sparkles, ChevronDown, Calendar, Image as ImageIcon, ArrowUpDown, ArrowUp, ArrowDown, Download, Upload, SlidersHorizontal, Search, Heart, LayoutGrid, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import DetailsModal from './DetailsModal';
 import { getAnimeImage } from '../services/jikanService';
 import { formatTags } from '../utils/tagUtils';
 
@@ -173,7 +172,7 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
     );
 });
 
-export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGenerateAllInfo, onImport, loadingItems, searchQuery, onSearchChange, onUpdateNote, onModalStateChange, onMoveToWatchlist, onMoveToLibrary, onExclude, enhancedMotion, isInWatchlist }) {
+export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGenerateAllInfo, onImport, loadingItems, searchQuery, onSearchChange, onUpdateNote, onMoveToWatchlist, onMoveToLibrary, onExclude, enhancedMotion, isInWatchlist, onOpenDetails }) {
     const [expandedItems, setExpandedItems] = useState({});
     const [showDropdown, setShowDropdown] = useState(false);
     const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -183,29 +182,12 @@ export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGe
     const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
     const [sortConfig, setSortConfig] = useState({ key: 'added', direction: 'desc' });
 
-    // Details Modal State
-    const [selectedAnime, setSelectedAnime] = useState(null);
-    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-
     const dropdownRef = useRef(null);
     const sortDropdownRef = useRef(null);
     const manageDropdownRef = useRef(null);
     const fileInputRef = useRef(null);
     const loadMoreRef = useRef(null);
 
-    // Sync modal state with parent
-    useEffect(() => {
-        if (onModalStateChange) {
-            onModalStateChange(isDetailsModalOpen);
-        }
-        // Cleanup ensures that if this component unmounts while modal is open (e.g. list becomes empty),
-        // we notify the parent that the modal is effectively closed so floating buttons reappear.
-        return () => {
-            if (onModalStateChange) {
-                onModalStateChange(false);
-            }
-        };
-    }, [isDetailsModalOpen, onModalStateChange]);
 
     // Close dropdowns when clicking outside
     useEffect(() => {
@@ -376,37 +358,12 @@ export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGe
 
     // if (!library || library.length === 0) return null; // Removed to allow header display
 
-    const handleModalOpen = (animeData, img) => {
-        setSelectedAnime({ ...animeData, image: img || animeData.image });
-        setIsDetailsModalOpen(true);
-    };
 
-    const handleModalClose = () => {
-        setIsDetailsModalOpen(false);
-    };
 
     if (!library) return null;
 
     return (
         <>
-            {/* Details Modal - Rendered before conditional empty return to ensure persistence during moves */}
-            <DetailsModal
-                isOpen={isDetailsModalOpen}
-                onClose={handleModalClose}
-                item={selectedAnime}
-                onAction={selectedAnime ? () => {
-                    if (isInWatchlist(selectedAnime.title)) {
-                        onMoveToLibrary(selectedAnime, false);
-                    } else {
-                        onMoveToWatchlist(selectedAnime, false);
-                    }
-                } : undefined}
-                actionLabel={selectedAnime && isInWatchlist(selectedAnime.title) ? "Undo Move" : "Move to Watchlist"}
-                actionIcon={selectedAnime && isInWatchlist(selectedAnime.title) ? <RefreshCw size={18} /> : <Heart size={18} />}
-                onUpdateNote={onUpdateNote}
-                enhancedMotion={enhancedMotion}
-                showNotes={true}
-            />
 
             {library.length === 0 ? (
                 <div className="text-center py-20 px-6">
@@ -548,7 +505,7 @@ export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGe
                                     onToggleExpand={() => toggleExpand(animeData.title)}
                                     onGenerateInfo={onGenerateInfo}
                                     onRemove={onRemove}
-                                    onClick={(img) => handleModalOpen(animeData, img)}
+                                    onClick={(img) => onOpenDetails({ ...animeData, image: img || animeData.image })}
                                     onMoveToWatchlist={onMoveToWatchlist}
                                     onExclude={onExclude}
                                 />

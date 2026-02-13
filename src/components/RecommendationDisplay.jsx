@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PlayCircle, Image as ImageIcon, Heart, EyeOff, Sparkles, ArrowUpDown, ArrowUp, ArrowDown, X, Check, Plus, Calendar, Tag, Trash2, Search } from 'lucide-react';
 import { getAnimeImage } from '../services/jikanService';
 import { formatTags } from '../utils/tagUtils';
-import DetailsModal from './DetailsModal';
 
 const RecommendationCard = memo(({ rec, index, onWatched, onRemove, onRemovePick, isInLibrary, isInWatchlist, onAddToWatchlist, onRemoveFromWatchlist, onClick, onExclude }) => {
     const [image, setImage] = useState(rec.image || null);
@@ -219,38 +218,20 @@ export default function RecommendationDisplay({
     onRemoveFromWatchlist,
 
     onClear,
-    onModalStateChange,
     onExclude,
     enhancedMotion,
     searchQuery,
     onSearchChange,
     isInLibrary,
-    isInWatchlist
+    isInWatchlist,
+    onOpenDetails
 }) {
     const [sortConfig, setSortConfig] = useState({ key: 'added', direction: 'asc' });
     const [showSortDropdown, setShowSortDropdown] = useState(false);
     const [visibleCount, setVisibleCount] = useState(20);
 
-    // Details Modal State
-    const [selectedRec, setSelectedRec] = useState(null);
-    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-
     const dropdownRef = useRef(null);
     const loadMoreRef = useRef(null);
-
-    // Sync modal state with parent
-    useEffect(() => {
-        if (onModalStateChange) {
-            onModalStateChange(isDetailsModalOpen);
-        }
-        // Cleanup ensures that if this component unmounts while modal is open (e.g. list becomes empty),
-        // we notify the parent that the modal is effectively closed so floating buttons reappear.
-        return () => {
-            if (onModalStateChange) {
-                onModalStateChange(false);
-            }
-        };
-    }, [isDetailsModalOpen, onModalStateChange]);
 
     // Intersection observer for infinite scroll
     useEffect(() => {
@@ -333,29 +314,10 @@ export default function RecommendationDisplay({
 
     if (!recommendations || !Array.isArray(recommendations)) return null;
 
+    if (!recommendations || !Array.isArray(recommendations)) return null;
+
     return (
         <>
-            {/* Details Modal - Rendered before conditional empty return to ensure persistence during moves */}
-            <DetailsModal
-                isOpen={isDetailsModalOpen}
-                onClose={() => {
-                    setIsDetailsModalOpen(false);
-                }}
-                item={selectedRec}
-                onAction={selectedRec ? () => {
-                    const inWatchlist = isInWatchlist(selectedRec.title);
-                    if (inWatchlist) {
-                        onRemoveFromWatchlist && onRemoveFromWatchlist(null, selectedRec.title, false);
-                    } else {
-                        onAddToWatchlist && onAddToWatchlist(selectedRec, false);
-                    }
-                } : undefined}
-                actionLabel={selectedRec && isInWatchlist(selectedRec.title) ? "Remove" : "Add to Watchlist"}
-                actionIcon={selectedRec && isInWatchlist(selectedRec.title) ? <Heart size={18} className="fill-current" /> : <Heart size={18} />}
-                isActionDisabled={isInLibrary(selectedRec?.title)}
-                enhancedMotion={enhancedMotion}
-                showNotes={false}
-            />
 
             {recommendations.length === 0 ? (
                 <div className="w-full max-w-6xl mx-auto mt-12 mb-20 px-4">
@@ -478,8 +440,7 @@ export default function RecommendationDisplay({
                                         onAddToWatchlist={onAddToWatchlist}
                                         onRemoveFromWatchlist={onRemoveFromWatchlist}
                                         onClick={(img) => {
-                                            setSelectedRec({ ...rec, image: img || rec.image });
-                                            setIsDetailsModalOpen(true);
+                                            onOpenDetails({ ...rec, image: img || rec.image });
                                         }}
                                         onExclude={onExclude}
                                     />

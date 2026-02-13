@@ -2,9 +2,8 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, LayoutGrid, Heart, Upload, Check, RefreshCw } from 'lucide-react';
 import WatchlistCard from './WatchlistCard';
-import DetailsModal from './DetailsModal';
 
-export default function WatchlistDisplay({ watchlist, library, onRemove, onMoveToLibrary, onMoveToWatchlist, onUpdateNote, onImport, onModalStateChange, searchQuery, onSearchChange, onGenerateInfo, loadingItems, onExclude, enhancedMotion, isInLibrary, isInWatchlist }) {
+export default function WatchlistDisplay({ watchlist, library, onRemove, onMoveToLibrary, onMoveToWatchlist, onUpdateNote, onImport, searchQuery, onSearchChange, onGenerateInfo, loadingItems, onExclude, enhancedMotion, isInLibrary, isInWatchlist, onOpenDetails }) {
     // const [searchQuery, setSearchQuery] = useState(''); // Lifted to App
     const [sortConfig, setSortConfig] = useState({ key: 'added', direction: 'desc' });
     const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -57,24 +56,6 @@ export default function WatchlistDisplay({ watchlist, library, onRemove, onMoveT
         return 'Sort';
     };
 
-    // Modal State
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-
-    // Sync modal state with parent
-    useEffect(() => {
-        if (onModalStateChange) {
-            onModalStateChange(isModalOpen);
-        }
-        // Cleanup ensures that if this component unmounts while modal is open (e.g. list becomes empty),
-        // we notify the parent that the modal is effectively closed so floating buttons reappear.
-        return () => {
-            if (onModalStateChange) {
-                onModalStateChange(false);
-            }
-        };
-    }, [isModalOpen, onModalStateChange]);
-
     const sortedWatchlist = useMemo(() => {
         if (!watchlist) return [];
 
@@ -108,33 +89,13 @@ export default function WatchlistDisplay({ watchlist, library, onRemove, onMoveT
         return filtered;
     }, [watchlist, searchQuery, sortConfig]);
 
-    const isItemSelectedInLibrary = selectedItem && isInLibrary(selectedItem.title || selectedItem);
+
 
     if (!watchlist) return null;
 
     return (
         <>
-            <DetailsModal
-                isOpen={isModalOpen}
-                onClose={() => {
-                    setIsModalOpen(false);
-                    setSelectedItem(null);
-                }}
-                item={selectedItem}
-                onAction={() => {
-                    if (isItemSelectedInLibrary) {
-                        onMoveToWatchlist(selectedItem, false);
-                    } else {
-                        onMoveToLibrary(selectedItem, false);
-                    }
-                }}
-                actionLabel={isItemSelectedInLibrary ? "Undo Move" : "Move to Library"}
-                actionIcon={isItemSelectedInLibrary ? <RefreshCw size={18} /> : <LayoutGrid size={18} />}
-                onUpdateNote={onUpdateNote}
-                enhancedMotion={enhancedMotion}
-                showNotes={true}
-                isActionDisabled={false}
-            />
+
 
             {watchlist.length === 0 ? (
                 <div className="text-center py-20 px-6">
@@ -240,8 +201,7 @@ export default function WatchlistDisplay({ watchlist, library, onRemove, onMoveT
                                         item={item}
                                         index={index}
                                         onClick={(clickedItem) => {
-                                            setSelectedItem(clickedItem);
-                                            setIsModalOpen(true);
+                                            onOpenDetails(clickedItem);
                                         }}
                                         onMoveToLibrary={onMoveToLibrary}
                                         onRemove={onRemove}
