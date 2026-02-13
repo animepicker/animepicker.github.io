@@ -63,7 +63,7 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
       signal: signal,
       body: JSON.stringify({
         model: model,
-        max_tokens: 2000,
+        max_tokens: parseInt(localStorage.getItem('ai_max_tokens')) || 73728,
         messages: [
           {
             role: "user",
@@ -101,6 +101,8 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
 
     if (response && response.status === 429) {
       errorMessage = `Rate limit hit. Wait a bit or switch provider/model. Details: ${errorMessage}`;
+    } else if (response && response.status === 402) {
+      errorMessage = `Payment Required: Your account balance is too low for this request. ${errorMessage}. Please add credits at https://openrouter.ai/credits or switch to a free model.`;
     }
     const err = new Error(errorMessage);
     if (response) err.code = response.status;
@@ -115,6 +117,25 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
   }
 
   const content = data.choices[0].message?.content;
+  const reasoning = data.choices[0].message?.reasoning; // Capture reasoning output just in case
+
+  if (reasoning) {
+    console.log("AI Reasoning Trace:", reasoning);
+  }
+
+  // Special handling for reasoning models that hit token limits
+  if ((!content || content === "") && reasoning && data.choices[0].finish_reason === "length") {
+    console.warn("Model hit token limit during reasoning. Attempting to extract JSON from reasoning trace...");
+    // Sometimes the model outputs the answer inside the reasoning block if it gets cut off
+    // or if it treats the reasoning block as the scratchpad for the final answer
+    try {
+      // We return the reasoning as the content to try and parse it
+      return reasoning;
+    } catch (e) {
+      throw new Error(`Model spent all tokens on reasoning and was cut off. Try increasing max_tokens or using a non-thinking model.`);
+    }
+  }
+
   if (content === undefined || content === null || content === "") {
     console.error(`${provider} returned empty content:`, data);
     const errorTip = (provider !== 'openrouter' && model.includes('/'))

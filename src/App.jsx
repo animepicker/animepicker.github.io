@@ -110,6 +110,41 @@ function App() {
         recommendations: false
     });
 
+    // Console Logs State (Lifted from UserMenuContent)
+    const [consoleLogs, setConsoleLogs] = useState([]);
+
+    useEffect(() => {
+        const originalConsole = {
+            log: console.log,
+            warn: console.warn,
+            error: console.error,
+            info: console.info
+        };
+
+        const intercept = (type, ...args) => {
+            setConsoleLogs(prev => [...prev, {
+                type,
+                timestamp: new Date().toLocaleTimeString(),
+                content: args.map(arg =>
+                    typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+                ).join(' ')
+            }].slice(-100)); // Keep last 100 logs
+            originalConsole[type](...args);
+        };
+
+        console.log = (...args) => intercept('log', ...args);
+        console.warn = (...args) => intercept('warn', ...args);
+        console.error = (...args) => intercept('error', ...args);
+        console.info = (...args) => intercept('info', ...args);
+
+        return () => {
+            console.log = originalConsole.log;
+            console.warn = originalConsole.warn;
+            console.error = originalConsole.error;
+            console.info = originalConsole.info;
+        };
+    }, []);
+
     const scrollPositions = useRef({ library: 0, recommendations: 0, watchlist: 0 });
     const recScrollRef = useRef(null);
     const watchScrollRef = useRef(null);
@@ -2426,6 +2461,8 @@ function App() {
                                 onClearExcludedItem={handleClearExcludedItem}
                                 onClearAllExcluded={handleClearAllExcluded}
                                 onUpdateExcludedItem={handleUpdateExcludedItem}
+                                consoleLogs={consoleLogs}
+                                onClearConsoleLogs={() => setConsoleLogs([])}
                             />
                         </motion.div>
                     </div>
@@ -2859,6 +2896,7 @@ function App() {
                                             isInLibrary={isInLibrary}
                                             isInWatchlist={isInWatchlist}
                                             onOpenDetails={(item) => handleOpenDetails(item, 'recommendations')}
+                                            onExclude={openExcludeModal}
                                         />
                                     )}
                                 </div>
