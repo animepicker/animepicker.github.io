@@ -3,15 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     LogOut, User, LayoutGrid, Sparkles, ArrowUp, ArrowDown, Plus, X,
     Play, Search, Info, Key, Download, Upload, RefreshCw, Heart, Trash2,
-    ChevronLeft, Check, Copy, ExternalLink, Loader2, Eye, EyeOff, ChevronDown, Undo, Zap, Wind, Cloud, CloudOff, Database, Calendar, Terminal
+    ChevronLeft, Check, Copy, ExternalLink, Loader2, Eye, EyeOff, ChevronDown, ChevronRight, Undo, Zap, Wind, Cloud, CloudOff, Database, Calendar, Terminal
 } from 'lucide-react';
 import AboutContent from './AboutContent';
+import { fetchModels as fetchModelsApi } from '../services/aiService';
 
 // API Key Input Constants
-const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
-const GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models";
-const CEREBRAS_MODELS_URL = "https://api.cerebras.ai/v1/models";
-const MISTRAL_MODELS_URL = "https://api.mistral.ai/v1/models";
 const DEFAULT_MODEL = "tngtech/deepseek-r1t2-chimera:free";
 
 export default function UserMenuContent({
@@ -70,16 +67,17 @@ export default function UserMenuContent({
     onClearAllExcluded,
     onUpdateExcludedItem,
     consoleLogs = [],
-    onClearConsoleLogs
+    onClearConsoleLogs,
+    models = [],
+    allProvidersModels = {},
+    onRefreshModels,
+    isModelsLoading = false
 }) {
     const [currentView, setCurrentView] = useState('main'); // 'main', 'about', 'api', 'instructions', 'regen', 'regen_options', 'excluded', 'effects', 'cloud', 'destruction', 'data_backup', 'console'
     const [regenTarget, setRegenTarget] = useState('watchlist'); // 'watchlist' or 'library'
 
     // API Settings State
     const [isApiKeyVisible, setIsApiKeyVisible] = useState(false);
-    const [models, setModels] = useState([]);
-
-    const [isLoadingModels, setIsLoadingModels] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [isModelListOpen, setIsModelListOpen] = useState(false);
     const [maxTokens, setMaxTokens] = useState(parseInt(localStorage.getItem('ai_max_tokens')) || 73728);
@@ -124,52 +122,66 @@ export default function UserMenuContent({
     const [editedExcludedTitle, setEditedExcludedTitle] = useState('');
     const [editedExcludedReason, setEditedExcludedReason] = useState('');
     const [confirmConfig, setConfirmConfig] = useState(null); // { title, message, onConfirm, actionLabel, isDanger }
-    const [showAllProviders, setShowAllProviders] = useState(false);
-    const modelListRef = useRef(null);
 
-    // Scroll selected model into view when list opens
+    const modelListRef = useRef(null);
+    const modelSelectorRef = useRef(null);
+
+    // Scroll selected model into view within the list when it opens
     useEffect(() => {
-        if (isModelListOpen && selectedModel && modelListRef.current && !isLoadingModels && models.length > 0) {
+        if (isModelListOpen && selectedModel && modelListRef.current && !isModelsLoading && models.length > 0) {
             const selectedElement = modelListRef.current.querySelector(`[data-model-id="${selectedModel}"]`);
             if (selectedElement) {
                 selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }
         }
-    }, [isModelListOpen, selectedModel, isLoadingModels, models]);
+    }, [isModelListOpen, selectedModel, isModelsLoading, models]);
 
-    const fetchModels = async () => {
-        if (models.length > 0) return;
-        setIsLoadingModels(true);
-        try {
-            let url = OPENROUTER_MODELS_URL;
-            let headers = {};
+    // Helper: get the effective max output tokens for the selected model
+    // maxCompletionTokens = actual max output tokens (from API if available)
+    // contextLength = total context window (input + output)
+    // For providers that don't expose max output tokens, use a safe default
+    const getModelMaxOutputTokens = () => {
+        const currentModelData = models.find(m => m.id === selectedModel);
+        if (!currentModelData) return 131072; // Default to 128k if no data
 
-            if (aiProvider === 'groq') {
-                url = GROQ_MODELS_URL;
-                headers = { "Authorization": `Bearer ${groqApiKey}` };
-            } else if (aiProvider === 'cerebras') {
-                url = CEREBRAS_MODELS_URL;
-                headers = { "Authorization": `Bearer ${cerebrasApiKey}` };
-            } else if (aiProvider === 'mistral') {
-                url = MISTRAL_MODELS_URL;
-                headers = { "Authorization": `Bearer ${mistralApiKey}` };
+        // If the API explicitly tells us the max output tokens, use it as the hard limit (slider max)
+        if (currentModelData.maxCompletionTokens > 0) return currentModelData.maxCompletionTokens;
+
+        // If unknown (Groq/Cerebras), allow slider to go up to full context length
+        // The user can try higher values, even if the API might reject them.
+        return currentModelData.contextLength > 0 ? currentModelData.contextLength : 131072;
+    };
+
+    // Per-model max tokens persistence and defaults
+    useEffect(() => {
+        if (!selectedModel) return;
+        const savedMaxTokens = localStorage.getItem(`max_tokens_${selectedModel}`);
+        if (savedMaxTokens) {
+            const val = parseInt(savedMaxTokens);
+            setMaxTokens(val);
+            localStorage.setItem('ai_max_tokens', val);
+        } else {
+            // Determine a safe default
+            const currentModelData = models.find(m => m.id === selectedModel);
+            let defaultTokens = 8192; // Safe default for unknown limits
+
+            if (currentModelData && currentModelData.maxCompletionTokens > 0) {
+                // If we know the limit, default to it (e.g. OpenRouter)
+                defaultTokens = currentModelData.maxCompletionTokens;
             }
 
-            const response = await fetch(url, { headers });
-            const data = await response.json();
+            // Ensure default doesn't exceed slider max
+            const sliderMax = getModelMaxOutputTokens();
+            if (defaultTokens > sliderMax) defaultTokens = sliderMax;
 
-            // Handle different API response structures
-            const modelsData = data.data || data;
-            const sortedModels = modelsData
-                .map(m => ({ id: m.id, name: m.name || m.id }))
-                .sort((a, b) => a.name.localeCompare(b.name));
-            setModels(sortedModels);
-        } catch (error) {
-            console.error('Failed to fetch models:', error);
-        } finally {
-            setIsLoadingModels(false);
+            setMaxTokens(defaultTokens);
+            localStorage.setItem('ai_max_tokens', defaultTokens);
         }
-    };
+    }, [selectedModel, models]);
+
+    // We no longer fetch models locally, App.jsx handles it.
+    // However, we can trigger a refresh if the user updates an API key. 
+    // This is handled via onBlur on the inputs below.
 
     const handleModelSelect = (modelId) => {
         setSelectedModel(modelId);
@@ -470,94 +482,94 @@ export default function UserMenuContent({
                         >
                             <MenuHeader title="API Settings" />
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
-                                {/* Provider Selection */}
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between ml-1">
-                                        <label className="text-sm text-gray-400 font-medium">AI Provider</label>
-                                        {!showAllProviders && (
-                                            <button
-                                                onClick={() => setShowAllProviders(true)}
-                                                className="text-[10px] font-bold text-violet-400/60 hover:text-violet-400 uppercase tracking-widest transition-colors flex items-center gap-1 group"
-                                            >
-                                                <Zap size={10} className="group-hover:animate-pulse" />
-                                                Show Others
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className={`grid ${showAllProviders ? 'grid-cols-4' : 'grid-cols-1'} gap-2 p-1 bg-black/30 border border-white/10 rounded-xl`}>
-                                        {[
-                                            { id: 'openrouter', name: 'OpenRouter' },
-                                            { id: 'groq', name: 'Groq' },
-                                            { id: 'cerebras', name: 'Cerebras' },
-                                            { id: 'mistral', name: 'Mistral' }
-                                        ].filter(p => showAllProviders || p.id === 'openrouter' || aiProvider === p.id).map(provider => (
-                                            <button
-                                                key={provider.id}
-                                                onClick={() => {
-                                                    setAiProvider(provider.id);
-                                                    setModels([]); // Clear models when switching providers
-                                                    setSearchQuery(''); // Reset search query on provider switch
+                                {/* Provider Selection - collapse when model list is open */}
+                                {!isModelListOpen && (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between ml-1">
+                                            <label className="text-sm text-gray-400 font-medium">AI Provider</label>
+                                        </div>
+                                        <div className="flex gap-1 p-1 bg-black/30 border border-white/10 rounded-xl">
+                                            {[
+                                                { id: 'openrouter', name: 'OpenRouter' },
+                                                { id: 'groq', name: 'Groq' },
+                                                { id: 'cerebras', name: 'Cerebras' },
+                                                { id: 'mistral', name: 'Mistral' }
+                                            ].map(provider => (
+                                                <button
+                                                    key={provider.id}
+                                                    onClick={() => {
+                                                        setAiProvider(provider.id);
+                                                        setSearchQuery(''); // Reset search query on provider switch
 
-                                                    // Load last used model for this provider if available
-                                                    let lastModel = localStorage.getItem(`${provider.id}_model`);
-                                                    if (!lastModel) {
-                                                        if (provider.id === 'groq') lastModel = 'llama-3.3-70b-versatile';
-                                                        else if (provider.id === 'cerebras') lastModel = 'llama-3.3-70b';
-                                                        else if (provider.id === 'mistral') lastModel = 'mistral-large-latest';
-                                                        else lastModel = DEFAULT_MODEL;
+                                                        // Load last used model for this provider if available
+                                                        let lastModel = localStorage.getItem(`${provider.id}_model`);
+                                                        if (!lastModel) {
+                                                            if (provider.id === 'groq') lastModel = 'llama-3.3-70b-versatile';
+                                                            else if (provider.id === 'cerebras') lastModel = 'llama-3.3-70b';
+                                                            else if (provider.id === 'mistral') lastModel = 'mistral-large-latest';
+                                                            else lastModel = DEFAULT_MODEL;
+                                                        }
+                                                        setSelectedModel(lastModel);
+
+                                                        // Trigger background fetch if models list for this provider is empty
+                                                        if (!allProvidersModels[provider.id] || allProvidersModels[provider.id].length === 0) {
+                                                            onRefreshModels(provider.id);
+                                                        }
+                                                    }}
+                                                    className={`flex-1 py-2 px-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${aiProvider === provider.id
+                                                        ? 'bg-violet-600/20 text-violet-300 border border-violet-500/30'
+                                                        : 'text-gray-500 hover:text-gray-400 border border-transparent'
+                                                        }`}
+                                                >
+                                                    {provider.name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* API Key Input - collapse when model list is open */}
+                                {!isModelListOpen && (
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-gray-400 font-medium ml-1">
+                                            {aiProvider === 'groq' ? 'Groq Key' : aiProvider === 'cerebras' ? 'Cerebras Key' : aiProvider === 'mistral' ? 'Mistral Key' : 'OpenRouter Key'}
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type={isApiKeyVisible ? "text" : "password"}
+                                                value={aiProvider === 'groq' ? groqApiKey : aiProvider === 'cerebras' ? cerebrasApiKey : aiProvider === 'mistral' ? mistralApiKey : apiKey}
+                                                onChange={(e) => {
+                                                    const key = e.target.value;
+                                                    if (aiProvider === 'groq') {
+                                                        setGroqApiKey(key);
+                                                        localStorage.setItem('groq_api_key', key);
+                                                    } else if (aiProvider === 'cerebras') {
+                                                        setCerebrasApiKey(key);
+                                                        localStorage.setItem('cerebras_api_key', key);
+                                                    } else if (aiProvider === 'mistral') {
+                                                        setMistralApiKey(key);
+                                                        localStorage.setItem('mistral_api_key', key);
+                                                    } else {
+                                                        setApiKey(key);
+                                                        localStorage.setItem('openrouter_api_key', key);
                                                     }
-                                                    setSelectedModel(lastModel);
                                                 }}
-                                                className={`py-2 rounded-lg text-xs font-bold transition-all ${aiProvider === provider.id
-                                                    ? 'bg-violet-600/20 text-violet-300 border border-violet-500/30'
-                                                    : 'text-gray-500 hover:text-gray-400 border border-transparent'
-                                                    }`}
+                                                onBlur={() => onRefreshModels(aiProvider)}
+                                                placeholder={aiProvider === 'groq' ? "gsk_..." : aiProvider === 'cerebras' ? "csk-..." : aiProvider === 'mistral' ? "Mistral API Key" : "sk-or-..."}
+                                                className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
+                                            />
+                                            <button
+                                                onClick={() => setIsApiKeyVisible(!isApiKeyVisible)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 p-1"
                                             >
-                                                {provider.name}
+                                                {isApiKeyVisible ? <EyeOff size={16} /> : <Eye size={16} />}
                                             </button>
-                                        ))}
+                                        </div>
                                     </div>
-                                </div>
-
-                                {/* API Key Input */}
-                                <div className="space-y-2">
-                                    <label className="text-sm text-gray-400 font-medium ml-1">
-                                        {aiProvider === 'groq' ? 'Groq Key' : aiProvider === 'cerebras' ? 'Cerebras Key' : aiProvider === 'mistral' ? 'Mistral Key' : 'OpenRouter Key'}
-                                    </label>
-                                    <div className="relative">
-                                        <input
-                                            type={isApiKeyVisible ? "text" : "password"}
-                                            value={aiProvider === 'groq' ? groqApiKey : aiProvider === 'cerebras' ? cerebrasApiKey : aiProvider === 'mistral' ? mistralApiKey : apiKey}
-                                            onChange={(e) => {
-                                                const key = e.target.value;
-                                                if (aiProvider === 'groq') {
-                                                    setGroqApiKey(key);
-                                                    localStorage.setItem('groq_api_key', key);
-                                                } else if (aiProvider === 'cerebras') {
-                                                    setCerebrasApiKey(key);
-                                                    localStorage.setItem('cerebras_api_key', key);
-                                                } else if (aiProvider === 'mistral') {
-                                                    setMistralApiKey(key);
-                                                    localStorage.setItem('mistral_api_key', key);
-                                                } else {
-                                                    setApiKey(key);
-                                                    localStorage.setItem('openrouter_api_key', key);
-                                                }
-                                            }}
-                                            placeholder={aiProvider === 'groq' ? "gsk_..." : aiProvider === 'cerebras' ? "csk-..." : aiProvider === 'mistral' ? "Mistral API Key" : "sk-or-..."}
-                                            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
-                                        />
-                                        <button
-                                            onClick={() => setIsApiKeyVisible(!isApiKeyVisible)}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 p-1"
-                                        >
-                                            {isApiKeyVisible ? <EyeOff size={16} /> : <Eye size={16} />}
-                                        </button>
-                                    </div>
-                                </div>
+                                )}
 
                                 {/* Model Selector */}
-                                <div className="space-y-2">
+                                <div ref={modelSelectorRef} className="space-y-2">
                                     <label className="text-sm text-gray-400 font-medium ml-1">Model Selection</label>
                                     {isModelListOpen ? (
                                         <div className="bg-black/30 border border-white/10 rounded-xl p-3 space-y-3">
@@ -571,8 +583,8 @@ export default function UserMenuContent({
                                                     className="w-full bg-white/5 border border-white/5 rounded-lg pl-9 pr-9 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50"
                                                 />
                                             </div>
-                                            <div ref={modelListRef} className="max-h-[200px] overflow-y-auto custom-scrollbar -mx-1 px-1 space-y-1">
-                                                {isLoadingModels ? (
+                                            <div ref={modelListRef} className="overflow-y-auto custom-scrollbar -mx-1 px-1 space-y-1" style={{ maxHeight: 'clamp(150px, 40vh, 350px)' }}>
+                                                {isModelsLoading ? (
                                                     <div className="flex items-center justify-center py-4">
                                                         <Loader2 size={20} className="animate-spin text-violet-400" />
                                                     </div>
@@ -610,55 +622,64 @@ export default function UserMenuContent({
                                         <button
                                             onClick={() => {
                                                 setIsModelListOpen(true);
-                                                fetchModels();
+                                                onRefreshModels(aiProvider);
                                             }}
                                             className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-sm text-white text-left flex items-center justify-between hover:border-violet-500/50 hover:bg-white/5 transition-all group"
                                         >
                                             <span className="truncate flex-1 font-mono text-xs">{selectedModel}</span>
-                                            <ChevronDown size={16} className="text-gray-400 group-hover:text-violet-400 transition-colors" />
+                                            <ChevronRight size={16} className="text-gray-400 group-hover:text-violet-400 transition-colors" />
                                         </button>
                                     )}
                                 </div>
 
-                                {/* Max Tokens Slider */}
-                                <div className="space-y-2 pt-2 border-t border-white/5">
-                                    <div className="flex items-center justify-between ml-1">
-                                        <label className="text-sm text-gray-400 font-medium">Max Tokens</label>
-                                        <span className="text-xs font-mono text-violet-300 bg-violet-500/10 px-2 py-0.5 rounded border border-violet-500/20">
-                                            {maxTokens.toLocaleString()}
-                                        </span>
+                                {/* Max Tokens Slider - collapse when model list is open */}
+                                {!isModelListOpen && (
+                                    <div className="space-y-2 pt-2 border-t border-white/5">
+                                        <div className="flex items-center justify-between ml-1">
+                                            <label className="text-sm text-gray-400 font-medium">Max Tokens</label>
+                                            <span className="text-xs font-mono text-violet-300 bg-violet-500/10 px-2 py-0.5 rounded border border-violet-500/20">
+                                                {maxTokens.toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="1024"
+                                            max={getModelMaxOutputTokens()}
+                                            step="1024"
+                                            value={maxTokens}
+                                            onChange={(e) => {
+                                                const val = parseInt(e.target.value);
+                                                setMaxTokens(val);
+                                                localStorage.setItem('ai_max_tokens', val);
+                                                if (selectedModel) {
+                                                    localStorage.setItem(`max_tokens_${selectedModel}`, val);
+                                                }
+                                            }}
+                                            className="w-full h-2 bg-black/30 rounded-lg appearance-none cursor-pointer accent-violet-500 hover:accent-violet-400 transition-all"
+                                        />
+                                        <div className="flex justify-between px-1">
+                                            <span className="text-[10px] text-gray-600 font-mono">1k</span>
+                                            <span className="text-[10px] text-gray-600 font-mono">
+                                                {`${(getModelMaxOutputTokens() / 1024).toFixed(0)}k`}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <input
-                                        type="range"
-                                        min="1024"
-                                        max="131072"
-                                        step="1024"
-                                        value={maxTokens}
-                                        onChange={(e) => {
-                                            const val = parseInt(e.target.value);
-                                            setMaxTokens(val);
-                                            localStorage.setItem('ai_max_tokens', val);
-                                        }}
-                                        className="w-full h-2 bg-black/30 rounded-lg appearance-none cursor-pointer accent-violet-500 hover:accent-violet-400 transition-all"
-                                    />
-                                    <div className="flex justify-between px-1">
-                                        <span className="text-[10px] text-gray-600 font-mono">1k</span>
-                                        <span className="text-[10px] text-gray-600 font-mono">128k</span>
-                                    </div>
-                                </div>
+                                )}
 
-                                {/* Help Links */}
-                                <div className="pt-4 border-t border-white/5">
-                                    <a
-                                        href={aiProvider === 'groq' ? "https://console.groq.com/keys" : aiProvider === 'cerebras' ? "https://cloud.cerebras.ai/" : aiProvider === 'mistral' ? "https://console.mistral.ai/api-keys/" : "https://openrouter.ai/keys"}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-violet-400 hover:text-violet-300 hover:underline flex items-center justify-between group"
-                                    >
-                                        <span>Get your {aiProvider === 'groq' ? 'Groq' : aiProvider === 'cerebras' ? 'Cerebras' : aiProvider === 'mistral' ? 'Mistral' : 'OpenRouter'} key &rarr;</span>
-                                        <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    </a>
-                                </div>
+                                {/* Help Links - collapse when model list is open */}
+                                {!isModelListOpen && (
+                                    <div className="pt-4 border-t border-white/5">
+                                        <a
+                                            href={aiProvider === 'groq' ? "https://console.groq.com/keys" : aiProvider === 'cerebras' ? "https://cloud.cerebras.ai/" : aiProvider === 'mistral' ? "https://console.mistral.ai/api-keys/" : "https://openrouter.ai/keys"}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-violet-400 hover:text-violet-300 hover:underline flex items-center justify-between group"
+                                        >
+                                            <span>Get your {aiProvider === 'groq' ? 'Groq' : aiProvider === 'cerebras' ? 'Cerebras' : aiProvider === 'mistral' ? 'Mistral' : 'OpenRouter'} key &rarr;</span>
+                                            <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </a>
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     )

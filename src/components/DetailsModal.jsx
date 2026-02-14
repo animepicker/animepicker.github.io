@@ -97,15 +97,36 @@ export default function DetailsModal({ isOpen, onClose, item, onAction, actionLa
                                 )}
 
                                 <div className="flex flex-wrap gap-2 mb-6">
-                                    {item.genres?.map((genre, i) => (
-                                        <span
-                                            key={i}
-                                            className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-white/5 text-gray-300 border border-white/10"
-                                        >
-                                            <Tag size={10} />
-                                            {genre}
-                                        </span>
-                                    ))}
+                                    {(() => {
+                                        const PRIORITY_TAGS = new Set([
+                                            'seinen',
+                                            'shonen', 'shounen',
+                                            'shoujo', 'shojo',
+                                            'josei',
+                                            'kids', 'kodomomuke'
+                                        ]);
+
+                                        const sortedGenres = [...(item.genres || [])].sort((a, b) => {
+                                            const aLower = a.toLowerCase();
+                                            const bLower = b.toLowerCase();
+                                            const aIsPriority = PRIORITY_TAGS.has(aLower);
+                                            const bIsPriority = PRIORITY_TAGS.has(bLower);
+
+                                            if (aIsPriority && !bIsPriority) return -1;
+                                            if (!aIsPriority && bIsPriority) return 1;
+                                            return 0; // Maintain relative order for same-priority items
+                                        });
+
+                                        return sortedGenres.map((genre, i) => (
+                                            <span
+                                                key={i}
+                                                className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-white/5 text-gray-300 border border-white/10"
+                                            >
+                                                <Tag size={10} />
+                                                {genre}
+                                            </span>
+                                        ));
+                                    })()}
                                 </div>
 
                                 <div className="prose prose-invert prose-sm max-w-none mb-8">

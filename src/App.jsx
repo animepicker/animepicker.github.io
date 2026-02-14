@@ -8,7 +8,7 @@ import AboutContent from './components/AboutContent';
 import AuthModal from './components/AuthModal';
 import UserMenuContent from './components/UserMenuContent';
 import ExcludeModal from './components/ExcludeModal';
-import { getRecommendations, getAnimeInfo } from './services/aiService';
+import { getRecommendations, getAnimeInfo, fetchModels } from './services/aiService';
 import { getAnimeImage } from './services/jikanService';
 import {
     getCurrentUser,
@@ -112,6 +112,18 @@ function App() {
 
     // Console Logs State (Lifted from UserMenuContent)
     const [consoleLogs, setConsoleLogs] = useState([]);
+    const [allProvidersModels, setAllProvidersModels] = useState({
+        openrouter: [],
+        groq: [],
+        cerebras: [],
+        mistral: []
+    });
+    const [isLoadingModels, setIsLoadingModels] = useState({
+        openrouter: false,
+        groq: false,
+        cerebras: false,
+        mistral: false
+    });
 
     useEffect(() => {
         const originalConsole = {
@@ -626,6 +638,9 @@ function App() {
 
     // Initial load: restore Google sync (session is already restored in state)
     useEffect(() => {
+        // Fetch models for all providers on site load
+        refreshAllModels();
+
         if (currentUser) {
             // For ALL users (manual or google), try to restore a Google session if they have a persistent token
             const username = currentUser.username || currentUser;
@@ -649,7 +664,7 @@ function App() {
                 });
             }
         }
-    }, []);
+    }, [currentUser]);
 
     // Scroll listener for back to top button only
     // Floating bar is now always visible
@@ -2045,10 +2060,12 @@ function App() {
             }));
 
             // Filter out any recommendations that are already in library, watchlist, or recommendations
-            const libraryTitlesLower = library.map(a => (a.title || a).toLowerCase().trim());
-            const watchlistTitlesLower = watchlist.map(a => (a.title || a).toLowerCase().trim());
-            const recommendationsTitlesLower = recommendations.map(a => (a.title || a).toLowerCase().trim());
-            const excludedTitlesLower = excludedItems.map(a => (a.title || a).toLowerCase().trim());
+            const getSafeTitle = (item) => String(item?.title || item || '').toLowerCase().trim();
+
+            const libraryTitlesLower = library.map(getSafeTitle);
+            const watchlistTitlesLower = watchlist.map(getSafeTitle);
+            const recommendationsTitlesLower = recommendations.map(getSafeTitle);
+            const excludedTitlesLower = excludedItems.map(getSafeTitle);
 
             const filteredData = dataWithMeta.filter(rec => {
                 const recTitle = rec.title?.toLowerCase().trim();
@@ -2345,6 +2362,39 @@ function App() {
         return {};
     };
 
+    const refreshAllModels = async () => {
+        const providers = ['openrouter', 'groq', 'cerebras', 'mistral'];
+        for (const p of providers) {
+            await handleRefreshModels(p);
+        }
+    };
+
+    const handleRefreshModels = async (providerToRefresh) => {
+        // Safe check for keys before fetching (except OpenRouter which is often free)
+        const key = localStorage.getItem(`${providerToRefresh}_api_key`);
+        if (providerToRefresh !== 'openrouter' && !key) {
+            console.log(`Skipping model fetch for ${providerToRefresh} (No API key)`);
+            return;
+        }
+
+        setIsLoadingModels(prev => ({ ...prev, [providerToRefresh]: true }));
+        try {
+            const apiKeys = {
+                groq: localStorage.getItem('groq_api_key'),
+                cerebras: localStorage.getItem('cerebras_api_key'),
+                mistral: localStorage.getItem('mistral_api_key')
+            };
+            const models = await fetchModels(providerToRefresh, apiKeys);
+            if (models && models.length > 0) {
+                setAllProvidersModels(prev => ({ ...prev, [providerToRefresh]: models }));
+            }
+        } catch (error) {
+            console.error(`Failed to refresh models for ${providerToRefresh}:`, error);
+        } finally {
+            setIsLoadingModels(prev => ({ ...prev, [providerToRefresh]: false }));
+        }
+    };
+
     return (
         <div className={`relative bg-[#0a0a0f] h-screen overflow-hidden ${!performanceSettings.enableBlur ? 'disable-blur' : ''} ${!performanceSettings.enhancedMotion ? 'reduced-motion' : ''}`} style={{ overflowX: 'clip' }}>
             {/* Added padding-bottom to avoid overlap with Quick Bar */}
@@ -2463,6 +2513,10 @@ function App() {
                                 onUpdateExcludedItem={handleUpdateExcludedItem}
                                 consoleLogs={consoleLogs}
                                 onClearConsoleLogs={() => setConsoleLogs([])}
+                                models={allProvidersModels[aiProvider]}
+                                allProvidersModels={allProvidersModels}
+                                onRefreshModels={handleRefreshModels}
+                                isModelsLoading={isLoadingModels[aiProvider]}
                             />
                         </motion.div>
                     </div>

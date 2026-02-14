@@ -10,6 +10,13 @@ const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
 const DEFAULT_CEREBRAS_MODEL = "llama-3.3-70b";
 const DEFAULT_MISTRAL_MODEL = "mistral-large-latest";
 
+export const MODEL_URLS = {
+  openrouter: "https://openrouter.ai/api/v1/models",
+  groq: "https://api.groq.com/openai/v1/models",
+  cerebras: "https://api.cerebras.ai/v1/models",
+  mistral: "https://api.mistral.ai/v1/models"
+};
+
 const getModel = (provider) => {
   if (provider === 'groq') return localStorage.getItem('groq_model') || DEFAULT_GROQ_MODEL;
   if (provider === 'cerebras') return localStorage.getItem('cerebras_model') || DEFAULT_CEREBRAS_MODEL;
@@ -123,18 +130,8 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
     console.log("AI Reasoning Trace:", reasoning);
   }
 
-  // Special handling for reasoning models that hit token limits
-  if ((!content || content === "") && reasoning && data.choices[0].finish_reason === "length") {
-    console.warn("Model hit token limit during reasoning. Attempting to extract JSON from reasoning trace...");
-    // Sometimes the model outputs the answer inside the reasoning block if it gets cut off
-    // or if it treats the reasoning block as the scratchpad for the final answer
-    try {
-      // We return the reasoning as the content to try and parse it
-      return reasoning;
-    } catch (e) {
-      throw new Error(`Model spent all tokens on reasoning and was cut off. Try increasing max_tokens or using a non-thinking model.`);
-    }
-  }
+
+
 
   if (content === undefined || content === null || content === "") {
     console.error(`${provider} returned empty content:`, data);
@@ -143,6 +140,11 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
       : " This can happen if the model is overloaded, the prompt was filtered, or the model ID is incompatible with the provider.";
     throw new Error(`AI model (${model}) returned an empty response.${errorTip}`);
   }
+
+
+
+
+  console.log("AI Raw Content:", content); // Log the raw content for debugging
 
   return content;
 };
@@ -369,8 +371,19 @@ ${customInstructions.filter(i => i.trim()).map(i => {
   `;
 
   try {
+    console.log("[DEBUG] Calling AI with prompt...");
     const text = await callAI(prompt, apiKey, provider, signal, model);
+    console.log("[DEBUG] AI text received. Length:", text.length);
+    console.log("[DEBUG] AI text preview:", text.substring(0, 100));
+
     const data = extractJson(text);
+    console.log("[DEBUG] Extracted JSON data type:", typeof data);
+    console.log("[DEBUG] Extracted JSON data isArray:", Array.isArray(data));
+    console.log("[DEBUG] Extracted JSON data length:", Array.isArray(data) ? data.length : 'N/A');
+
+    if (!Array.isArray(data)) {
+      throw new Error("AI response format invalid: Expected an array of recommendations.");
+    }
 
     return data.map((item, idx) => ({
       ...item,
@@ -378,7 +391,7 @@ ${customInstructions.filter(i => i.trim()).map(i => {
     }));
   } catch (error) {
     if (error.name === 'AbortError') throw error;
-    console.error("AI Service Error:", error);
+    console.error("AI Service Error Details:", error);
     throw new Error(`${provider.toUpperCase()} API Error: ${error.message}. Please check your API key, model availability, or try again later.`);
   }
 };
@@ -415,7 +428,57 @@ export const getAnimeInfo = async (title, apiKey, provider = 'openrouter', instr
     const text = await callAI(prompt, apiKey, provider, null, model);
     return extractJson(text);
   } catch (error) {
-    console.error(`Error fetching anime info from ${provider}:`, error);
     return { title, genres: [], description: "Could not load details" };
+  }
+};
+
+export const fetchModels = async (provider, apiKeys = {}) => {
+  try {
+    const url = MODEL_URLS[provider];
+    const headers = {};
+
+    if (provider === 'groq' && apiKeys.groq) {
+      headers["Authorization"] = `Bearer ${apiKeys.groq}`;
+    } else if (provider === 'cerebras' && apiKeys.cerebras) {
+      headers["Authorization"] = `Bearer ${apiKeys.cerebras}`;
+    } else if (provider === 'mistral' && apiKeys.mistral) {
+      headers["Authorization"] = `Bearer ${apiKeys.mistral}`;
+    }
+
+    const response = await fetch(url, { headers });
+    const data = await response.json();
+
+    const modelsData = data.data || data;
+    if (!Array.isArray(modelsData)) return [];
+
+    return modelsData.map(m => {
+      let contextLength = 0;
+      let maxCompletionTokens = 0;
+
+      if (provider === 'openrouter') {
+        contextLength = m.context_length || 0;
+        // OpenRouter exposes max output tokens via top_provider
+        maxCompletionTokens = m.top_provider?.max_completion_tokens || 0;
+      } else if (provider === 'groq' || provider === 'cerebras') {
+        contextLength = m.context_window || 0;
+        // Groq/Cerebras don't expose max output tokens in their models endpoint.
+        // Use a safe default: typically much smaller than context_window.
+        // Common Groq limits: 8192, 16384, 32768 depending on model.
+        maxCompletionTokens = 0; // Will be handled by fallback logic
+      } else if (provider === 'mistral') {
+        contextLength = m.max_context_length || 0;
+        maxCompletionTokens = m.max_completion_tokens || 0;
+      }
+
+      return {
+        id: m.id,
+        name: m.name || m.id,
+        contextLength: parseInt(contextLength) || 0,
+        maxCompletionTokens: parseInt(maxCompletionTokens) || 0
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  } catch (error) {
+    console.error(`Failed to fetch models for ${provider}:`, error);
+    return [];
   }
 };
