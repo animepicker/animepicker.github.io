@@ -9,7 +9,7 @@ import AuthModal from './components/AuthModal';
 import UserMenuContent from './components/UserMenuContent';
 import ExcludeModal from './components/ExcludeModal';
 import { getRecommendations, getAnimeInfo, fetchModels } from './services/aiService';
-import { getAnimeImage } from './services/jikanService';
+import { getAnimeImage, searchAnime } from './services/jikanService';
 import {
     getCurrentUser,
     signup,
@@ -97,6 +97,9 @@ function App() {
     // Quick Add Modal State
     const [showAddModal, setShowAddModal] = useState(false);
     const [newItemTitle, setNewItemTitle] = useState('');
+    const [quickAddSuggestions, setQuickAddSuggestions] = useState([]);
+    const [isSearchingQuickAdd, setIsSearchingQuickAdd] = useState(false);
+    const searchTimeoutRef = useRef(null);
 
     // Quick Search State
     const [showSearchModal, setShowSearchModal] = useState(false);
@@ -1100,10 +1103,10 @@ function App() {
         });
 
         // Fetch info in background
-        if (typeof titleOrAnime === 'string' && apiKey) {
+        if (typeof titleOrAnime === 'string' && getCurrentApiKey()) {
             generateInfoForItem(title, newItem.id);
         }
-    }, [apiKey]);
+    }, [getCurrentApiKey]);
 
 
 
@@ -1141,8 +1144,8 @@ function App() {
     };
 
     const generateInfoForItem = async (originalTitle, itemId = null, targetList = 'library') => {
-        if (!apiKey) {
-            toast.error("Add your API key to generate info");
+        if (!getCurrentApiKey()) {
+            toast.error(`Please enter your ${aiProvider === 'openrouter' ? 'OpenRouter' : aiProvider} API Key first`);
             return;
         }
 
@@ -1234,8 +1237,8 @@ function App() {
     };
 
     const generateAllInfo = async (mode = 'missing', targetList = 'library') => {
-        if (!apiKey) {
-            toast.error("Please enter your API Key first");
+        if (!getCurrentApiKey()) {
+            toast.error(`Please enter your ${aiProvider === 'openrouter' ? 'OpenRouter' : aiProvider} API Key first`);
             return;
         }
 
@@ -1819,7 +1822,7 @@ function App() {
         }
 
         // Auto-generate info if API key is present AND info is missing (e.g. added via search)
-        if (apiKey && (!newItem.description || newItem.description === '')) {
+        if (getCurrentApiKey() && (!newItem.description || newItem.description === '')) {
             generateInfoForItem(title, newItem.id, 'watchlist');
         }
     };
@@ -2017,8 +2020,8 @@ function App() {
             handleCancelGeneration();
             return;
         }
-        if (!apiKey) {
-            toast.error("Please enter your OpenRouter API Key first.");
+        if (!getCurrentApiKey()) {
+            toast.error(`Please enter your ${aiProvider === 'openrouter' ? 'OpenRouter' : aiProvider} API Key first.`);
             return;
         }
         if (library.length === 0) {
@@ -3152,22 +3155,22 @@ function App() {
             <AnimatePresence>
                 {
                     showAddModal && (
-                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                        <div className="fixed inset-0 z-[60] flex items-start justify-center pt-24 px-4 pointer-events-none">
                             <motion.div
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
                                 onClick={() => setShowAddModal(false)}
-                                className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                                className="absolute inset-0 bg-black/80 backdrop-blur-sm pointer-events-auto"
                             />
                             <motion.div
                                 initial="hidden"
                                 animate="visible"
                                 exit="exit"
                                 variants={modalVariants}
-                                className="relative bg-[#1a1a2e] border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl scale-100"
+                                className="relative bg-[#1a1a2e] border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl scale-100 flex flex-col max-h-[80vh] pointer-events-auto"
                             >
-                                <div className="flex justify-between items-center mb-6">
+                                <div className="flex justify-between items-center mb-6 shrink-0">
                                     <h3 className="text-xl font-bold text-white">Quick Add Anime</h3>
                                     <button
                                         onClick={() => setShowAddModal(false)}
@@ -3178,7 +3181,7 @@ function App() {
                                 </div>
 
                                 {/* Target Toggle */}
-                                <div className="flex bg-black/40 p-1 rounded-xl mb-4">
+                                <div className="flex bg-black/40 p-1 rounded-xl mb-4 shrink-0">
                                     <button
                                         onClick={() => setAddToTarget('library')}
                                         className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${addToTarget === 'library'
@@ -3199,11 +3202,29 @@ function App() {
                                     </button>
                                 </div>
 
-                                <div className="relative mb-4">
+                                <div className="relative mb-2 shrink-0">
                                     <input
                                         type="text"
                                         value={newItemTitle}
-                                        onChange={(e) => setNewItemTitle(e.target.value)}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setNewItemTitle(val);
+
+                                            // Debounced Search
+                                            if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+                                            if (val.trim().length >= 3) {
+                                                setIsSearchingQuickAdd(true);
+                                                searchTimeoutRef.current = setTimeout(async () => {
+                                                    const results = await searchAnime(val);
+                                                    setQuickAddSuggestions(results);
+                                                    setIsSearchingQuickAdd(false);
+                                                }, 500);
+                                            } else {
+                                                setQuickAddSuggestions([]);
+                                                setIsSearchingQuickAdd(false);
+                                            }
+                                        }}
                                         onKeyPress={(e) => e.key === 'Enter' && handleQuickAdd(e)}
                                         placeholder={`Add anime to ${addToTarget}...`}
                                         className="w-full bg-black/30 border border-white/10 rounded-lg py-3 pl-4 pr-12 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all text-base"
@@ -3212,7 +3233,10 @@ function App() {
 
                                     {newItemTitle && (
                                         <button
-                                            onClick={() => setNewItemTitle('')}
+                                            onClick={() => {
+                                                setNewItemTitle('');
+                                                setQuickAddSuggestions([]);
+                                            }}
                                             className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white p-1 transition-colors"
                                         >
                                             <X size={16} />
@@ -3230,9 +3254,71 @@ function App() {
                                         <Plus size={20} />
                                     </button>
                                 </div>
-                                <p className="text-gray-400 text-sm text-center">
-                                    Press Enter to add, or click the plus icon.
-                                </p>
+
+                                {/* Search Suggestions */}
+                                {(quickAddSuggestions.length > 0 || isSearchingQuickAdd) && newItemTitle.trim().length >= 3 && (
+                                    <div className="overflow-y-auto custom-scrollbar flex-1 -mx-2 px-2 mt-2 space-y-2 min-h-0">
+                                        {isSearchingQuickAdd ? (
+                                            <div className="flex justify-center p-4">
+                                                <div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+                                            </div>
+                                        ) : (
+                                            quickAddSuggestions.map((anime) => (
+                                                <button
+                                                    key={anime.mal_id}
+                                                    onClick={() => {
+                                                        // Quick Add Strategy: Add immediately using the full object info
+                                                        const itemToAdd = {
+                                                            title: anime.title,
+                                                            image: anime.image_url,
+                                                            mal_id: anime.mal_id,
+                                                            year: anime.year,
+                                                            score: anime.score,
+                                                            description: anime.synopsis,
+                                                            genres: anime.genres
+                                                        };
+
+                                                        if (addToTarget === 'watchlist') {
+                                                            addToWatchlist(itemToAdd);
+                                                        } else {
+                                                            addToLibrary(itemToAdd);
+                                                        }
+
+                                                        setNewItemTitle('');
+                                                        setQuickAddSuggestions([]);
+                                                        setShowAddModal(false);
+                                                    }}
+                                                    className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors text-left group"
+                                                >
+                                                    <div className="w-12 h-16 shrink-0 rounded-md overflow-hidden bg-white/5">
+                                                        {anime.image_url ? (
+                                                            <img src={anime.image_url} alt="" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-xs text-gray-600">?</div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-medium text-white truncate group-hover:text-violet-400 transition-colors">
+                                                            {anime.title}
+                                                        </div>
+                                                        <div className="text-xs text-gray-400 truncate">
+                                                            {anime.year || 'Unknown Year'} • {anime.genres.slice(0, 2).join(', ')}
+                                                        </div>
+                                                    </div>
+                                                    <div className="opacity-0 group-hover:opacity-100 self-center text-violet-400 transition-opacity">
+                                                        <Plus size={20} />
+                                                    </div>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
+
+                                {quickAddSuggestions.length === 0 && !isSearchingQuickAdd && (
+                                    <p className="text-gray-400 text-sm text-center mt-4">
+                                        Press Enter to add, or click the plus icon.
+                                    </p>
+                                )}
                             </motion.div>
                         </div>
                     )

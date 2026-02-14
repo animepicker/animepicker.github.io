@@ -252,3 +252,31 @@ export const getAnimeImage = (title) => {
 
     return promise;
 };
+
+export const searchAnime = async (query) => {
+    if (!query || query.length < 3) return [];
+
+    // Check if we have a recent cached search for this query to avoid spamming
+    // Ideally we would cache search results too, but for now let's just hit the API with debouncing (handled in UI)
+
+    try {
+        const response = await fetch(`${JIKAN_API_URL}?q=${encodeURIComponent(query)}&limit=5`);
+        if (!response.ok) return [];
+
+        const data = await response.json();
+        if (!data.data) return [];
+
+        return data.data.map(item => ({
+            mal_id: item.mal_id,
+            title: item.title,
+            image_url: item.images?.jpg?.large_image_url || item.images?.jpg?.image_url,
+            synopsis: item.synopsis,
+            score: item.score,
+            year: item.year || (item.aired?.from ? new Date(item.aired.from).getFullYear() : null),
+            genres: item.genres?.map(g => g.name) || []
+        }));
+    } catch (error) {
+        console.warn("Jikan search failed:", error);
+        return [];
+    }
+};
