@@ -9,7 +9,7 @@ import AuthModal from './components/AuthModal';
 import UserMenuContent from './components/UserMenuContent';
 import ExcludeModal from './components/ExcludeModal';
 import { getRecommendations, getAnimeInfo, fetchModels } from './services/aiService';
-import { getAnimeImage, searchAnime } from './services/jikanService';
+import { getAnimeImage, searchAnime, getAnimeDetails } from './services/jikanService';
 import {
     getCurrentUser,
     signup,
@@ -39,6 +39,13 @@ import {
     googleLogout,
     getUserProfile
 } from './services/googleDriveService';
+
+const getSafeTitle = (item) => {
+    if (!item) return '';
+    const title = typeof item === 'string' ? item : item?.title;
+    return String(title || '').toLowerCase().trim();
+};
+
 import { Toaster, toast } from 'sonner';
 import { LogOut, User, LayoutGrid, Sparkles, ArrowUp, ArrowDown, Plus, X, Play, Search, Info, Key, Download, Upload, RefreshCw, Heart, Trash2, ChevronUp, Check } from 'lucide-react';
 
@@ -1499,7 +1506,7 @@ function App() {
                 description: itemToRestore.title
             });
         } else if (itemToRestore.source === 'watchlist') {
-            if (!watchlist.some(i => (i.title || i).toLowerCase() === itemToRestore.title.toLowerCase())) {
+            if (!watchlist.some(i => getSafeTitle(i) === getSafeTitle(itemToRestore))) {
                 setWatchlist(prev => {
                     const newList = [...prev, itemToRestore];
                     watchlistRef.current = newList; // Update Ref
@@ -1510,7 +1517,7 @@ function App() {
                 description: itemToRestore.title
             });
         } else if (itemToRestore.source === 'recommendations') {
-            if (!recommendations.some(i => (i.title || i).toLowerCase() === itemToRestore.title.toLowerCase())) {
+            if (!recommendations.some(i => getSafeTitle(i) === getSafeTitle(itemToRestore))) {
                 setRecommendations(prev => {
                     const newList = [...prev, itemToRestore];
                     recommendationsRef.current = newList; // Update Ref
@@ -1536,15 +1543,15 @@ function App() {
 
         excludedItems.forEach(item => {
             if (item.source === 'library') {
-                if (!library.some(i => (i.title || i).toLowerCase() === item.title.toLowerCase())) {
+                if (!library.some(i => getSafeTitle(i) === getSafeTitle(item))) {
                     toLibrary.push(item);
                 }
             } else if (item.source === 'watchlist') {
-                if (!watchlist.some(i => (i.title || i).toLowerCase() === item.title.toLowerCase())) {
+                if (!watchlist.some(i => getSafeTitle(i) === getSafeTitle(item))) {
                     toWatchlist.push(item);
                 }
             } else if (item.source === 'recommendations') {
-                if (!recommendations.some(i => (i.title || i).toLowerCase() === item.title.toLowerCase())) {
+                if (!recommendations.some(i => getSafeTitle(i) === getSafeTitle(item))) {
                     toRecommendations.push(item);
                 }
             }
@@ -1611,8 +1618,10 @@ function App() {
 
     // Filter lists based on excluded items
     const isExcluded = (item) => {
-        if (!item || !item.title) return false;
-        return excludedItems.some(ex => ex.title.toLowerCase() === item.title.toLowerCase());
+        if (!item) return false;
+        const itemTitle = getSafeTitle(item);
+        if (!itemTitle) return false;
+        return excludedItems.some(ex => getSafeTitle(ex) === itemTitle);
     };
 
     const filteredLibrary = library.filter(item => !isExcluded(item));
@@ -1651,10 +1660,11 @@ function App() {
                     }
                     if (importedData.excludedItems) {
                         setExcludedItems(prev => {
-                            const currentMap = new Map(prev.map(item => [((item.title || item).toLowerCase().trim()), item]));
+                            const currentMap = new Map(prev.map(item => [getSafeTitle(item), item]));
                             importedData.excludedItems.forEach(item => {
-                                if (item && (item.title || item)) {
-                                    currentMap.set((item.title || item).toLowerCase().trim(), item);
+                                if (item) {
+                                    const t = getSafeTitle(item);
+                                    if (t) currentMap.set(t, item);
                                 }
                             });
                             const newList = Array.from(currentMap.values());
@@ -1674,8 +1684,8 @@ function App() {
                 // Merge with existing data (avoiding duplicates by title)
                 // Helper to merge lists
                 const mergeLists = (current, incoming) => {
-                    const currentMap = new Map(current.map(item => [item.title.toLowerCase(), item]));
-                    const excludedTitlesLower = excludedItems.map(a => (a.title || a).toLowerCase().trim());
+                    const currentMap = new Map(current.map(item => [getSafeTitle(item), item]));
+                    const excludedTitlesLower = excludedItems.map(a => getSafeTitle(a));
 
                     incoming.forEach(item => {
                         if (item && item.title) {
@@ -1749,7 +1759,7 @@ function App() {
 
         setLibrary((prev) => {
             const idx = prev.findIndex((item) =>
-                (id && item.id == id) || (title && (item.title || item)?.toLowerCase().trim() === title.toLowerCase().trim())
+                (id && item.id == id) || (title && getSafeTitle(item) === title.toLowerCase().trim())
             );
             if (idx === -1) return prev;
             const newLib = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
@@ -1819,7 +1829,7 @@ function App() {
 
         const normalizedTitle = title.toLowerCase().trim();
         const alreadyInWatchlist = watchlist.some(w =>
-            (w.title || w).toLowerCase().trim() === normalizedTitle
+            getSafeTitle(w) === normalizedTitle
         );
 
         if (alreadyInWatchlist) {
@@ -1859,13 +1869,13 @@ function App() {
         // Find item to restore before removing
         const itemToRestore = watchlist.find(item =>
             (id && item.id === id) ||
-            (normalizedTitle && (item.title || item).toLowerCase().trim() === normalizedTitle)
+            (normalizedTitle && getSafeTitle(item) === normalizedTitle)
         );
 
         setWatchlist(prev => {
             const newList = prev.filter(item => {
                 if (id && item.id == id) return false;
-                if (normalizedTitle && (item.title || item).toLowerCase().trim() === normalizedTitle) return false;
+                if (normalizedTitle && getSafeTitle(item) === normalizedTitle) return false;
                 return true;
             });
             watchlistRef.current = newList; // Update Ref
@@ -1882,7 +1892,7 @@ function App() {
                             setWatchlist(prev => {
                                 const exists = prev.some(w =>
                                     (itemToRestore.id && w.id === itemToRestore.id) ||
-                                    (w.title || w).toLowerCase().trim() === (itemToRestore.title || itemToRestore).toLowerCase().trim()
+                                    getSafeTitle(w) === getSafeTitle(itemToRestore)
                                 );
                                 if (exists) return prev;
                                 return [...prev, itemToRestore];
@@ -1915,7 +1925,7 @@ function App() {
         setLibrary(prev => {
             const newList = prev.filter(w => {
                 if (item.id && w.id == item.id) return false;
-                if ((w.title || w).toLowerCase().trim() === normalizedTitle) return false;
+                if (getSafeTitle(w) === normalizedTitle) return false;
                 return true;
             });
             libraryRef.current = newList; // Update ref for sync
@@ -1937,13 +1947,13 @@ function App() {
                         const currentWatchlist = watchlistRef.current;
                         const latestItem = currentWatchlist.find(w =>
                             (item.id && w.id == item.id) ||
-                            (w.title || w).toLowerCase().trim() === normalizedTitle
+                            getSafeTitle(w) === normalizedTitle
                         ) || item;
 
                         setWatchlist(prev => {
                             const newList = prev.filter(w => {
                                 if (item.id && w.id == item.id) return false;
-                                if ((w.title || w).toLowerCase().trim() === normalizedTitle) return false;
+                                if (getSafeTitle(w) === normalizedTitle) return false;
                                 return true;
                             });
                             watchlistRef.current = newList;
@@ -1975,7 +1985,7 @@ function App() {
 
         // Add to library
         const alreadyInLibrary = library.some(w =>
-            (w.title || w).toLowerCase().trim() === normalizedTitle
+            getSafeTitle(w) === normalizedTitle
         );
 
         if (!alreadyInLibrary) {
@@ -2008,7 +2018,7 @@ function App() {
                         setLibrary(prev => {
                             const newList = prev.filter(w => {
                                 if (item.id && w.id == item.id) return false;
-                                if ((w.title || w).toLowerCase().trim() === normalizedTitle) return false;
+                                if (getSafeTitle(w) === normalizedTitle) return false;
                                 return true;
                             });
                             libraryRef.current = newList;
@@ -2097,8 +2107,6 @@ function App() {
             }));
 
             // Filter out any recommendations that are already in library, watchlist, or recommendations
-            const getSafeTitle = (item) => String(item?.title || item || '').toLowerCase().trim();
-
             const libraryTitlesLower = library.map(getSafeTitle);
             const watchlistTitlesLower = watchlist.map(getSafeTitle);
             const recommendationsTitlesLower = recommendations.map(getSafeTitle);
@@ -2114,9 +2122,35 @@ function App() {
 
             setRecommendations(prev => [...prev, ...filteredData]);
 
-            // Pre-fetch images in background for all new picks
+            // Pre-fetch images and details in background for all new picks
             filteredData.forEach(item => {
+                // Fetch image (legacy/fast)
                 getAnimeImage(item.title).catch(() => { });
+
+                // Fetch full details (progressive enrichment)
+                getAnimeDetails(item.title).then(details => {
+                    if (details) {
+                        setRecommendations(prev => {
+                            const updated = prev.map(p => {
+                                if (p.id === item.id) {
+                                    return {
+                                        ...p,
+                                        description: details.synopsis || p.description,
+                                        year: details.year || p.year,
+                                        averageScore: details.score ? Math.round(details.score * 10) : p.averageScore,
+                                        genres: details.genres?.map(g => g.name) || p.genres,
+                                        coverImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.coverImage,
+                                        bannerImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.bannerImage,
+                                        mal_id: details.mal_id
+                                    };
+                                }
+                                return p;
+                            });
+                            recommendationsRef.current = updated;
+                            return updated;
+                        });
+                    }
+                }).catch(() => { });
             });
 
             // Success Message
@@ -2147,11 +2181,11 @@ function App() {
 
         const normalizedTitle = title.toLowerCase().trim();
         const removedItem = recommendations.find(item =>
-            (item.title || item).toLowerCase().trim() === normalizedTitle
+            getSafeTitle(item) === normalizedTitle
         );
 
         setRecommendations(prev => {
-            const newList = prev.filter(item => (item.title || item).toLowerCase().trim() !== normalizedTitle);
+            const newList = prev.filter(item => getSafeTitle(item) !== normalizedTitle);
             recommendationsRef.current = newList; // Update Ref
             return newList;
         });
@@ -2167,7 +2201,7 @@ function App() {
                 onClick: () => {
                     setRecommendations(prev => {
                         const exists = prev.some(item =>
-                            (item.title || item).toLowerCase().trim() === normalizedTitle
+                            getSafeTitle(item) === normalizedTitle
                         );
                         if (exists) return prev;
                         const newList = [...prev, removedItem];

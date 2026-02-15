@@ -56,8 +56,8 @@ const fetchFromJikan = async (query) => {
     try {
         const response = await fetch(`${JIKAN_API_URL}?q=${encodeURIComponent(query)}&limit=1`);
 
-        if (response.status === 429) return { status: 429 };
-        if (response.status >= 500) return { status: response.status };
+        if (response.status === 429) return { error: true, status: 429 };
+        if (response.status >= 500) return { error: true, status: response.status };
 
         if (!response.ok) throw new Error(`Jikan API Error: ${response.status}`);
 
@@ -65,9 +65,43 @@ const fetchFromJikan = async (query) => {
         const result = data.data?.[0];
         if (!result) return null;
 
-        return result.images?.jpg?.large_image_url || result.images?.jpg?.image_url || null;
+        // Return full object instead of just image URL
+        return {
+            mal_id: result.mal_id,
+            url: result.url,
+            images: result.images,
+            title: result.title,
+            title_english: result.title_english,
+            title_japanese: result.title_japanese,
+            type: result.type,
+            source: result.source,
+            episodes: result.episodes,
+            status: result.status,
+            airing: result.airing,
+            aired: result.aired,
+            duration: result.duration,
+            rating: result.rating,
+            score: result.score,
+            scored_by: result.scored_by,
+            rank: result.rank,
+            popularity: result.popularity,
+            members: result.members,
+            favorites: result.favorites,
+            synopsis: result.synopsis,
+            background: result.background,
+            season: result.season,
+            year: result.year,
+            broadcast: result.broadcast,
+            producers: result.producers,
+            licensors: result.licensors,
+            studios: result.studios,
+            genres: result.genres,
+            explicit_genres: result.explicit_genres,
+            themes: result.themes,
+            demographics: result.demographics
+        };
     } catch (error) {
-        return { status: 'NETWORK_ERROR' };
+        return { error: true, status: 'NETWORK_ERROR' };
     }
 };
 
@@ -82,7 +116,19 @@ const fetchFromKitsu = async (query) => {
 
         if (!result) return null;
 
-        return result.attributes?.posterImage?.original || result.attributes?.posterImage?.large || null;
+        // Return standardized object structure from Kitsu
+        return {
+            title: result.attributes?.canonicalTitle,
+            synopsis: result.attributes?.synopsis,
+            averageScore: result.attributes?.averageRating,
+            year: result.attributes?.startDate ? new Date(result.attributes.startDate).getFullYear() : null,
+            images: {
+                jpg: {
+                    image_url: result.attributes?.posterImage?.original || result.attributes?.posterImage?.large,
+                    large_image_url: result.attributes?.posterImage?.large
+                }
+            }
+        };
     } catch (error) {
         console.warn("Kitsu API fallback failed:", error);
         return null;
@@ -111,11 +157,11 @@ const processQueue = async () => {
 
     activeRequests++;
     const request = queue.shift();
-    const { resolve, title, retryCount = 0 } = request;
+    const { resolve, title, retryCount = 0, fullDetails = false } = request;
 
     // Last-mile cache check: If another request for this title succeeded while this was queued
-    // or while it was waiting for retry, resolve immediately.
-    if (imageCache.has(title)) {
+    // or while it was waiting for retry, AND we only want image, resolve immediately.
+    if (!fullDetails && imageCache.has(title)) {
         resolve(imageCache.get(title));
         activeRequests--;
         if (activeRequests < MAX_CONCURRENT) processQueue();
@@ -134,7 +180,7 @@ const processQueue = async () => {
         let result = await fetchFromJikan(title);
 
         // Handle temporary failures (429, 5xx, Network)
-        if (result && (typeof result === 'object' && result.status)) {
+        if (result && result.error) {
             consecutiveFailures++;
             const isRateLimit = result.status === 429;
             const isTimeout = result.status === 504 || result.status === 503;
@@ -174,7 +220,7 @@ const processQueue = async () => {
             // Fall through to try Kitsu
         }
 
-        if (result && typeof result === 'string') {
+        if (result && result.title) {
             // Jikan Success
             consecutiveFailures = 0;
         } else {
@@ -184,17 +230,18 @@ const processQueue = async () => {
 
             if (kitsuResult) {
                 result = kitsuResult;
-                consecutiveFailures = 0; // Reset failures since we found an image
+                consecutiveFailures = 0; // Reset failures since we found an image/data
             } else {
                 result = null;
             }
         }
 
         // Success Path
-        let imageUrl = typeof result === 'string' ? result : null;
+        // Extract image URL for cache
+        const imageUrl = result?.images?.jpg?.large_image_url || result?.images?.jpg?.image_url || null;
 
         // Clean-up fallback if first try failed (but connection was ok)
-        if (!imageUrl) {
+        if (!result) {
             const cleanTitle = title
                 .replace(/[\(\[].*?[\)\]]/g, '')
                 .replace(/season\s*\d+/gi, '')
@@ -202,20 +249,31 @@ const processQueue = async () => {
 
             if (cleanTitle !== title) {
                 // Try Jikan again with clean title
-                imageUrl = await fetchFromJikan(cleanTitle);
-
-                // If Jikan fails again, try Kitsu with clean title
-                if (typeof imageUrl !== 'string') {
-                    imageUrl = await fetchFromKitsu(cleanTitle);
+                // Note: Recursive calls here is tricky with the queue, ideally we queue a new request
+                // But for now keeping simple linear retry for cleanup
+                let retryResult = await fetchFromJikan(cleanTitle);
+                if (retryResult?.title) {
+                    result = retryResult;
+                } else {
+                    retryResult = await fetchFromKitsu(cleanTitle);
+                    if (retryResult) result = retryResult;
                 }
             }
         }
 
-        if (imageUrl) {
-            imageCache.set(title, imageUrl);
-            saveCache();
+        if (result) {
+            const finalImageUrl = result?.images?.jpg?.large_image_url || result?.images?.jpg?.image_url;
+            if (finalImageUrl) {
+                imageCache.set(title, finalImageUrl);
+                saveCache();
+            }
         }
-        resolve(imageUrl || null);
+
+        if (fullDetails) {
+            resolve(result);
+        } else {
+            resolve(result?.images?.jpg?.large_image_url || result?.images?.jpg?.image_url || null);
+        }
 
     } catch (error) {
         console.error(`Unexpected error:`, error);
@@ -233,24 +291,29 @@ export const getAnimeImage = (title) => {
     if (!title) return Promise.resolve(null);
     if (imageCache.has(title)) return Promise.resolve(imageCache.get(title));
 
-    // Deduplication: If a request for this title is already in flight, return the shared promise.
-    if (pendingPromises.has(title)) {
-        return pendingPromises.get(title);
-    }
+    // Deduplication: If a request for this title is already in flight
+    // AND it's not a full details request (which we can't easily piggyback on if we want simple image, or vice versa, 
+    // but for now let's assume if it's pending, we wait)
+    // Actually, if we have a pending full details request, it returns the object, NOT the string.
+    // So we should be careful. For simplicity, we'll keep them separate or just check cache first.
+    // To avoid complexity, we'll just push to queue.
 
-    const promise = new Promise((resolve) => {
-        queue.push({ resolve, title });
+    // Check pendingPromises map... 
+    // Modification: pendingPromises now needs to track type of request?
+    // For safety, let's just queue it. The queue has cache checks.
+
+    return new Promise((resolve) => {
+        queue.push({ resolve, title, fullDetails: false });
         processQueue();
     });
+};
 
-    pendingPromises.set(title, promise);
-
-    // Clean up pending entry when done (success or fail)
-    promise.finally(() => {
-        pendingPromises.delete(title);
+export const getAnimeDetails = (title) => {
+    if (!title) return Promise.resolve(null);
+    return new Promise((resolve) => {
+        queue.push({ resolve, title, fullDetails: true });
+        processQueue();
     });
-
-    return promise;
 };
 
 export const searchAnime = async (query) => {

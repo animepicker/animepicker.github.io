@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react';
 
 export default function DetailsModal({ isOpen, onClose, item, onAction, actionLabel, actionIcon, isActionDisabled, onUpdateNote, enhancedMotion = true, showNotes = false }) {
     const [note, setNote] = useState('');
+    const [isExpanded, setIsExpanded] = useState(false);
 
     useEffect(() => {
         if (item) {
             setNote(item.note || '');
+            setIsExpanded(false);
         }
     }, [item]);
 
@@ -131,7 +133,31 @@ export default function DetailsModal({ isOpen, onClose, item, onAction, actionLa
 
                                 <div className="prose prose-invert prose-sm max-w-none mb-8">
                                     <p className="text-gray-300 leading-relaxed">
-                                        {item.description || item.synopsis || "No description available."}
+                                        {(() => {
+                                            const description = item.description || item.synopsis || "No description available.";
+                                            const MAX_LENGTH = 150;
+                                            const shouldTruncate = description.length > MAX_LENGTH;
+                                            const displayedText = shouldTruncate && !isExpanded
+                                                ? description.slice(0, MAX_LENGTH).trim() + '...'
+                                                : description;
+
+                                            return (
+                                                <>
+                                                    {displayedText}
+                                                    {shouldTruncate && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setIsExpanded(!isExpanded);
+                                                            }}
+                                                            className="ml-1.5 text-violet-400 hover:text-violet-300 font-medium hover:underline inline-flex items-center text-xs uppercase tracking-wider"
+                                                        >
+                                                            {isExpanded ? 'Read Less' : 'Read More'}
+                                                        </button>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </p>
                                 </div>
 
