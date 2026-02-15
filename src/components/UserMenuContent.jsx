@@ -593,7 +593,7 @@ export default function UserMenuContent({
                                                     className="w-full bg-white/5 border border-white/5 rounded-lg pl-9 pr-9 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50"
                                                 />
                                             </div>
-                                            <div ref={modelListRef} className="overflow-y-auto custom-scrollbar -mx-1 px-1 space-y-1" style={{ maxHeight: 'clamp(150px, 40vh, 350px)' }}>
+                                            <div ref={modelListRef} className="overflow-y-auto custom-scrollbar -mx-1 px-1 space-y-1" style={{ maxHeight: 'clamp(120px, 30vh, 300px)' }}>
                                                 {isModelsLoading ? (
                                                     <div className="flex items-center justify-center py-4">
                                                         <Loader2 size={20} className="animate-spin text-violet-400" />
