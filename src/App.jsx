@@ -48,16 +48,25 @@ const RECOMMENDATION_DEFAULT_INSTRUCTION = "Identify the most common demographic
 const TABS = ['recommendations', 'watchlist', 'library'];
 
 function App() {
-    const [aiProvider, setAiProvider] = useState(localStorage.getItem('ai_provider') || 'openrouter');
+    const [aiProvider, setAiProvider] = useState(localStorage.getItem('ai_provider') || 'cerebras');
     const [apiKey, setApiKey] = useState(localStorage.getItem('openrouter_api_key') || '');
     const [groqApiKey, setGroqApiKey] = useState(localStorage.getItem('groq_api_key') || '');
     const [cerebrasApiKey, setCerebrasApiKey] = useState(localStorage.getItem('cerebras_api_key') || '');
     const [mistralApiKey, setMistralApiKey] = useState(localStorage.getItem('mistral_api_key') || '');
     const [selectedModel, setSelectedModel] = useState(() => {
         const provider = localStorage.getItem('ai_provider') || 'openrouter';
-        if (provider === 'groq') return localStorage.getItem('groq_model') || 'llama-3.3-70b-versatile';
-        if (provider === 'cerebras') return localStorage.getItem('cerebras_model') || 'llama-3.3-70b';
-        if (provider === 'mistral') return localStorage.getItem('mistral_model') || 'mistral-large-latest';
+        if (provider === 'groq') {
+            const saved = localStorage.getItem('groq_model');
+            return (saved && !saved.includes('/')) ? saved : 'llama-3.3-70b-versatile';
+        }
+        if (provider === 'cerebras') {
+            const saved = localStorage.getItem('cerebras_model');
+            return (saved && !saved.includes('/')) ? saved : 'gpt-oss-120b';
+        }
+        if (provider === 'mistral') {
+            const saved = localStorage.getItem('mistral_model');
+            return (saved && !saved.includes('/')) ? saved : 'mistral-large-latest';
+        }
         return localStorage.getItem('openrouter_model') || 'tngtech/deepseek-r1t2-chimera:free';
     });
     const [currentUser, setCurrentUser] = useState(() => getStoredUser());
@@ -253,6 +262,7 @@ function App() {
     });
     const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, id: null, title: null, type: 'library' });
     const [showUserMenu, setShowUserMenu] = useState(false);
+    const [userMenuInitialView, setUserMenuInitialView] = useState('main');
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -1145,7 +1155,15 @@ function App() {
 
     const generateInfoForItem = async (originalTitle, itemId = null, targetList = 'library') => {
         if (!getCurrentApiKey()) {
-            toast.error(`Please enter your ${aiProvider === 'openrouter' ? 'OpenRouter' : aiProvider} API Key first`);
+            toast.error("Please enter an API Key first.", {
+                action: {
+                    label: 'Settings',
+                    onClick: () => {
+                        setUserMenuInitialView('api');
+                        setShowUserMenu(true);
+                    }
+                }
+            });
             return;
         }
 
@@ -1238,7 +1256,15 @@ function App() {
 
     const generateAllInfo = async (mode = 'missing', targetList = 'library') => {
         if (!getCurrentApiKey()) {
-            toast.error(`Please enter your ${aiProvider === 'openrouter' ? 'OpenRouter' : aiProvider} API Key first`);
+            toast.error("Please enter an API Key first.", {
+                action: {
+                    label: 'Settings',
+                    onClick: () => {
+                        setUserMenuInitialView('api');
+                        setShowUserMenu(true);
+                    }
+                }
+            });
             return;
         }
 
@@ -2021,7 +2047,15 @@ function App() {
             return;
         }
         if (!getCurrentApiKey()) {
-            toast.error(`Please enter your ${aiProvider === 'openrouter' ? 'OpenRouter' : aiProvider} API Key first.`);
+            toast.error("Please enter an API Key first.", {
+                action: {
+                    label: 'Settings',
+                    onClick: () => {
+                        setUserMenuInitialView('api');
+                        setShowUserMenu(true);
+                    }
+                }
+            });
             return;
         }
         if (library.length === 0) {
@@ -2460,7 +2494,11 @@ function App() {
                             <UserMenuContent
                                 currentUser={currentUser}
                                 onLogout={handleLogout}
-                                onClose={() => setShowUserMenu(false)}
+                                onClose={() => {
+                                    setShowUserMenu(false);
+                                    setUserMenuInitialView('main');
+                                }}
+                                initialView={userMenuInitialView}
                                 onDeleteAccount={handleDeleteAccount}
                                 onImport={() => importFileRef.current?.click()}
                                 onExport={handleExportLibrary}

@@ -7,7 +7,7 @@ const MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions";
 
 const DEFAULT_OPENROUTER_MODEL = "tngtech/deepseek-r1t2-chimera:free";
 const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
-const DEFAULT_CEREBRAS_MODEL = "llama-3.3-70b";
+const DEFAULT_CEREBRAS_MODEL = "gpt-oss-120b";
 const DEFAULT_MISTRAL_MODEL = "mistral-large-latest";
 
 export const MODEL_URLS = {

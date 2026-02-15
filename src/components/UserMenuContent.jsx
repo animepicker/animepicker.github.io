@@ -71,9 +71,10 @@ export default function UserMenuContent({
     models = [],
     allProvidersModels = {},
     onRefreshModels,
-    isModelsLoading = false
+    isModelsLoading = false,
+    initialView = 'main'
 }) {
-    const [currentView, setCurrentView] = useState('main'); // 'main', 'about', 'api', 'instructions', 'regen', 'regen_options', 'excluded', 'effects', 'cloud', 'destruction', 'data_backup', 'console'
+    const [currentView, setCurrentView] = useState(initialView); // 'main', 'about', 'api', 'instructions', 'regen', 'regen_options', 'excluded', 'effects', 'cloud', 'destruction', 'data_backup', 'console'
     const [regenTarget, setRegenTarget] = useState('watchlist'); // 'watchlist' or 'library'
 
     // API Settings State
@@ -172,7 +173,9 @@ export default function UserMenuContent({
 
             // Ensure default doesn't exceed slider max
             const sliderMax = getModelMaxOutputTokens();
-            if (defaultTokens > sliderMax) defaultTokens = sliderMax;
+
+            // Set default to maximum available
+            defaultTokens = sliderMax;
 
             setMaxTokens(defaultTokens);
             localStorage.setItem('ai_max_tokens', defaultTokens);
@@ -490,9 +493,9 @@ export default function UserMenuContent({
                                         </div>
                                         <div className="flex gap-1 p-1 bg-black/30 border border-white/10 rounded-xl">
                                             {[
+                                                { id: 'cerebras', name: 'Cerebras' },
                                                 { id: 'openrouter', name: 'OpenRouter' },
                                                 { id: 'groq', name: 'Groq' },
-                                                { id: 'cerebras', name: 'Cerebras' },
                                                 { id: 'mistral', name: 'Mistral' }
                                             ].map(provider => (
                                                 <button
@@ -504,10 +507,17 @@ export default function UserMenuContent({
                                                         // Load last used model for this provider if available
                                                         let lastModel = localStorage.getItem(`${provider.id}_model`);
                                                         if (!lastModel) {
-                                                            if (provider.id === 'groq') lastModel = 'llama-3.3-70b-versatile';
-                                                            else if (provider.id === 'cerebras') lastModel = 'llama-3.3-70b';
+                                                            if (provider.id === 'cerebras') lastModel = 'gpt-oss-120b';
+                                                            else if (provider.id === 'groq') lastModel = 'llama-3.3-70b-versatile';
                                                             else if (provider.id === 'mistral') lastModel = 'mistral-large-latest';
                                                             else lastModel = DEFAULT_MODEL;
+                                                        } else {
+                                                            // Sanitize: If provider is NOT OpenRouter, model should NOT contain '/'
+                                                            if (provider.id !== 'openrouter' && lastModel.includes('/')) {
+                                                                if (provider.id === 'cerebras') lastModel = 'gpt-oss-120b';
+                                                                else if (provider.id === 'groq') lastModel = 'llama-3.3-70b-versatile';
+                                                                else if (provider.id === 'mistral') lastModel = 'mistral-large-latest';
+                                                            }
                                                         }
                                                         setSelectedModel(lastModel);
 
