@@ -321,7 +321,7 @@ const mergeEnrichmentData = async (job, enrichmentData) => {
                         ...item,
                         mal_id: enrichmentData.mal_id || item.mal_id,
                         genres: mergedGenres.length > 0 ? mergedGenres : item.genres,
-                        demographics: enrichmentData.demographics || item.demographics
+                        demographics: (enrichmentData.demographics && enrichmentData.demographics.length > 0) ? enrichmentData.demographics : item.demographics
                     };
                 }
                 return item;

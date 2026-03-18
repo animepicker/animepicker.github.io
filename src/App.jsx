@@ -2288,9 +2288,12 @@ function App() {
 
             setRecommendations(prev => [...prev, ...filteredData]);
 
-            // Enqueue background enrichment jobs for recommendations
+            // Enqueue background enrichment jobs for recommendations (only if missing demographics)
             filteredData.forEach(item => {
-                enqueueEnrichmentJob({ ...item, listType: 'recommendations' });
+                const hasDemographics = item.demographics && item.demographics.length > 0;
+                if (!hasDemographics) {
+                    enqueueEnrichmentJob({ ...item, listType: 'recommendations' });
+                }
             });
 
             // Pre-fetch images and details in background for all new picks
@@ -2304,11 +2307,18 @@ function App() {
                         setRecommendations(prev => {
                             const updated = prev.map(p => {
                                 if (p.id === item.id) {
+                                    const jikanDemos = details.demographics?.map(d => d.name) || [];
+                                    const jikanTags = details.genres?.map(g => g.name) || [];
+                                    
+                                    const finalDemos = jikanDemos.length > 0 ? jikanDemos : (p.demographics || []);
+                                    const mergedTags = [...finalDemos, ...jikanTags];
+
                                     return {
                                         ...p,
                                         description: details.synopsis || p.description,
                                         year: details.year || p.year,
-                                        genres: [...(details.demographics?.map(d => d.name) || []), ...(details.genres?.map(g => g.name) || [])] || p.genres,
+                                        genres: mergedTags.length > 0 ? mergedTags : p.genres,
+                                        demographics: finalDemos.length > 0 ? finalDemos : p.demographics,
                                         coverImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.coverImage,
                                         bannerImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.bannerImage,
                                         mal_id: details.mal_id
@@ -2404,9 +2414,12 @@ function App() {
                 setRecommendations(prev => [...prev, ...filteredData]);
                 toast.success(`Generated ${filteredData.length} new recommendations based on "${itemTitle}"!`);
 
-                // Enqueue background enrichment jobs for new recommendations
+                // Enqueue background enrichment jobs for new recommendations (only if missing demographics)
                 filteredData.forEach(rec => {
-                    enqueueEnrichmentJob({ ...rec, listType: 'recommendations' });
+                    const hasDemographics = rec.demographics && rec.demographics.length > 0;
+                    if (!hasDemographics) {
+                        enqueueEnrichmentJob({ ...rec, listType: 'recommendations' });
+                    }
                 });
 
                 // Switch to recommendations tab
@@ -2420,11 +2433,18 @@ function App() {
                             setRecommendations(prev => {
                                 const updated = prev.map(p => {
                                     if (p.id === rec.id) {
+                                        const jikanDemos = details.demographics?.map(d => d.name) || [];
+                                        const jikanTags = details.genres?.map(g => g.name) || [];
+                                        
+                                        const finalDemos = jikanDemos.length > 0 ? jikanDemos : (p.demographics || []);
+                                        const mergedTags = [...finalDemos, ...jikanTags];
+
                                         return {
                                             ...p,
                                             description: details.synopsis || p.description,
                                             year: details.year || p.year,
-                                            genres: [...(details.demographics?.map(d => d.name) || []), ...(details.genres?.map(g => g.name) || [])] || p.genres,
+                                            genres: mergedTags.length > 0 ? mergedTags : p.genres,
+                                            demographics: finalDemos.length > 0 ? finalDemos : p.demographics,
                                             coverImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.coverImage,
                                             bannerImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.bannerImage,
                                             mal_id: details.mal_id

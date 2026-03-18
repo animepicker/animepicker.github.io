@@ -366,6 +366,7 @@ const extractJson = (text) => {
           title: title,
           year: (bText.match(/"year"\s*:\s*"([^"]*)"/) || [null, ""])[1],
           genres: (bText.match(/"genres"\s*:\s*\[([^\]]*)\]/) || [null, ""])[1].split(',').map(g => g.replace(/"/g, '').trim()).filter(g => g),
+          demographics: (bText.match(/"demographics"\s*:\s*\[([^\]]*)\]/) || [null, ""])[1].split(',').map(d => d.replace(/"/g, '').trim()).filter(d => d),
           reason: (bText.match(/"reason"\s*:\s*"([^"]*)"/) || [null, ""])[1],
           description: (bText.match(/"description"\s*:\s*"([^"]*)"/) || [null, ""])[1]
         });
@@ -441,6 +442,7 @@ ${customInstructions.filter(i => i.trim()).map(i => {
         "title": "Anime Title",
         "year": "Release Year (e.g. 2023)",
         "genres": ["Genre1", "Genre2"],
+        "demographics": ["Demographic1"], // ONLY use standard MyAnimeList terms: Shounen, Seinen, Shoujo, Josei, Kids.
         "reason": "A 2-sentence explanation of why this fits the user's taste, specifically referencing their notes if applicable.",
         "description": "A brief 1-sentence plot summary."
       }
@@ -491,7 +493,7 @@ Return ONLY a JSON object with:
 {
   "title": "Anime Title",
   "genres": ["Genre1", "Genre2"],
-  "demographics": ["Demographic1", "Demographic2"]
+  "demographics": ["Demographic1"] // ONLY use standard MyAnimeList terms: Shounen, Seinen, Shoujo, Josei, Kids.
 }
 
 IMPORTANT: Only return the title, genres, and demographics. Do NOT include description or year.
@@ -515,6 +517,7 @@ Return ONLY a JSON object with:
 {
   "title": "Anime Title",
   "genres": ["Genre1", "Genre2"],
+  "demographics": ["Demographic1"], // ONLY use standard MyAnimeList terms: Shounen, Seinen, Shoujo, Josei, Kids.
   "description": "Short description of the plot",
   "year": 20XX
 }
