@@ -64,6 +64,7 @@ function App() {
     const [groqApiKey, setGroqApiKey] = useState(localStorage.getItem('groq_api_key') || '');
     const [cerebrasApiKey, setCerebrasApiKey] = useState(localStorage.getItem('cerebras_api_key') || '');
     const [mistralApiKey, setMistralApiKey] = useState(localStorage.getItem('mistral_api_key') || '');
+    const [nvidiaApiKey, setNvidiaApiKey] = useState(localStorage.getItem('nvidia_api_key') || '');
     const [selectedModel, setSelectedModel] = useState(() => {
         const provider = localStorage.getItem('ai_provider') || 'openrouter';
         if (provider === 'groq') {
@@ -78,6 +79,25 @@ function App() {
             const saved = localStorage.getItem('mistral_model');
             return (saved && !saved.includes('/')) ? saved : 'mistral-large-latest';
         }
+        if (provider === 'nvidia') {
+            const saved = localStorage.getItem('nvidia_model');
+            return (saved && !saved.includes('/')) ? saved : 'meta/llama-3.3-70b-instruct';
+        }
+        
+        // Handle custom providers
+        const customProvidersRaw = localStorage.getItem('custom_providers');
+        if (customProvidersRaw) {
+            try {
+                const customs = JSON.parse(customProvidersRaw);
+                const currentCustom = customs.find(p => p.id === provider);
+                if (currentCustom && currentCustom.model) {
+                    return currentCustom.model;
+                }
+            } catch (e) {
+                console.error("Failed to parse custom providers for model initialization", e);
+            }
+        }
+
         return localStorage.getItem('openrouter_model') || 'tngtech/deepseek-r1t2-chimera:free';
     });
     const [currentUser, setCurrentUser] = useState(() => getStoredUser());
@@ -140,13 +160,19 @@ function App() {
         openrouter: [],
         groq: [],
         cerebras: [],
-        mistral: []
+        mistral: [],
+        nvidia: []
+    });
+    const [customProviders, setCustomProviders] = useState(() => {
+        const saved = localStorage.getItem('custom_providers');
+        return saved ? JSON.parse(saved) : [];
     });
     const [isLoadingModels, setIsLoadingModels] = useState({
         openrouter: false,
         groq: false,
         cerebras: false,
-        mistral: false
+        mistral: false,
+        nvidia: false
     });
 
     useEffect(() => {
@@ -190,13 +216,19 @@ function App() {
         };
 
         const intercept = (type, ...args) => {
-            setConsoleLogs(prev => [...prev, {
-                type,
-                timestamp: new Date().toLocaleTimeString(),
-                content: args.map(arg =>
-                    typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-                ).join(' ')
-            }].slice(-100)); // Keep last 100 logs
+            const content = args.map(arg =>
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+
+            // To prevent infinite re-render loops, don't capture logs that might 
+            // trigger state updates that trigger more logs (like React warnings)
+            if (!content.startsWith('Warning:')) {
+                setConsoleLogs(prev => [...prev, {
+                    type,
+                    timestamp: new Date().toLocaleTimeString(),
+                    content
+                }].slice(-100)); // Keep last 100 logs
+            }
             originalConsole[type](...args);
         };
 
@@ -291,8 +323,14 @@ function App() {
         if (aiProvider === 'groq') return groqApiKey;
         if (aiProvider === 'cerebras') return cerebrasApiKey;
         if (aiProvider === 'mistral') return mistralApiKey;
+        if (aiProvider === 'nvidia') return nvidiaApiKey;
+        
+        // Check custom providers
+        const custom = customProviders.find(p => p.id === aiProvider);
+        if (custom) return custom.apiKey;
+
         return apiKey;
-    }, [aiProvider, apiKey, groqApiKey, cerebrasApiKey, mistralApiKey]);
+    }, [aiProvider, apiKey, groqApiKey, cerebrasApiKey, mistralApiKey, nvidiaApiKey, customProviders]);
     const countDropdownRef = useRef(null);
     const abortControllerRef = useRef(null);
     const [showFloatingBar, setShowFloatingBar] = useState(false);
@@ -399,6 +437,13 @@ function App() {
             markLocalChange('performanceSettings');
         }
     }, [performanceSettings, currentUser, markLocalChange]);
+
+    useEffect(() => {
+        localStorage.setItem('custom_providers', JSON.stringify(customProviders));
+        if (currentUser && !isLoadingLibrary.current) {
+            markLocalChange('customProviders');
+        }
+    }, [customProviders, currentUser, markLocalChange]);
 
     useEffect(() => {
         if (currentUser) {
@@ -1281,7 +1326,6 @@ function App() {
                     demographics: data.demographics || (isObject ? originalTitle.demographics : []),
                     // Preserve all other fields from originalTitle
                     description: isObject ? originalTitle.description : (data.description || ''),
-                    averageScore: isObject ? originalTitle.averageScore : data.averageScore,
                     year: isObject ? originalTitle.year : data.year,
                     bannerImage: isObject ? originalTitle.bannerImage : null,
                     coverImage: isObject ? originalTitle.coverImage : null,
@@ -1295,7 +1339,6 @@ function App() {
                     genres: data.genres || [],
                     demographics: data.demographics || [],
                     description: data.description || '',
-                    averageScore: data.averageScore,
                     year: data.year,
                     bannerImage: data.bannerImage || (isObject ? originalTitle.bannerImage : null),
                     coverImage: data.coverImage || (isObject ? originalTitle.coverImage : null),
@@ -2265,7 +2308,6 @@ function App() {
                                         ...p,
                                         description: details.synopsis || p.description,
                                         year: details.year || p.year,
-                                        averageScore: details.score ? Math.round(details.score * 10) : p.averageScore,
                                         genres: [...(details.demographics?.map(d => d.name) || []), ...(details.genres?.map(g => g.name) || [])] || p.genres,
                                         coverImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.coverImage,
                                         bannerImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.bannerImage,
@@ -2382,7 +2424,6 @@ function App() {
                                             ...p,
                                             description: details.synopsis || p.description,
                                             year: details.year || p.year,
-                                            averageScore: details.score ? Math.round(details.score * 10) : p.averageScore,
                                             genres: [...(details.demographics?.map(d => d.name) || []), ...(details.genres?.map(g => g.name) || [])] || p.genres,
                                             coverImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.coverImage,
                                             bannerImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.bannerImage,
@@ -2679,9 +2720,16 @@ function App() {
 
     const handleRefreshModels = async (providerToRefresh) => {
         // Safe check for keys before fetching (except OpenRouter which is often free)
-        const key = localStorage.getItem(`${providerToRefresh}_api_key`);
+        let key = localStorage.getItem(`${providerToRefresh}_api_key`);
+        
+        // If not found in standard keys, check custom providers
+        if (!key) {
+            const customs = JSON.parse(localStorage.getItem('custom_providers') || '[]');
+            const custom = customs.find(p => p.id === providerToRefresh);
+            if (custom) key = custom.apiKey;
+        }
+
         if (providerToRefresh !== 'openrouter' && !key) {
-            console.debug(`Skipping model fetch for ${providerToRefresh} (No API key)`);
             return;
         }
 
@@ -2690,7 +2738,8 @@ function App() {
             const apiKeys = {
                 groq: localStorage.getItem('groq_api_key'),
                 cerebras: localStorage.getItem('cerebras_api_key'),
-                mistral: localStorage.getItem('mistral_api_key')
+                mistral: localStorage.getItem('mistral_api_key'),
+                nvidia: localStorage.getItem('nvidia_api_key')
             };
             const models = await fetchModels(providerToRefresh, apiKeys);
             if (models && models.length > 0) {
@@ -2787,6 +2836,8 @@ function App() {
                                 setCerebrasApiKey={setCerebrasApiKey}
                                 mistralApiKey={mistralApiKey}
                                 setMistralApiKey={setMistralApiKey}
+                                nvidiaApiKey={nvidiaApiKey}
+                                setNvidiaApiKey={setNvidiaApiKey}
                                 selectedModel={selectedModel}
                                 setSelectedModel={setSelectedModel}
                                 customInstructions={customInstructions}
@@ -2829,6 +2880,8 @@ function App() {
                                 allProvidersModels={allProvidersModels}
                                 onRefreshModels={handleRefreshModels}
                                 isModelsLoading={isLoadingModels[aiProvider]}
+                                customProviders={customProviders}
+                                setCustomProviders={setCustomProviders}
                             />
                         </motion.div>
                     </div>

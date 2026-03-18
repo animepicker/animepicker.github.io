@@ -4,24 +4,43 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const CEREBRAS_API_URL = "https://api.cerebras.ai/v1/chat/completions";
 const MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions";
+const NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
+
+const CORS_PROXY = "https://corsproxy.io/?";
 
 const DEFAULT_OPENROUTER_MODEL = "tngtech/deepseek-r1t2-chimera:free";
 const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
 const DEFAULT_CEREBRAS_MODEL = "gpt-oss-120b";
 const DEFAULT_MISTRAL_MODEL = "mistral-large-latest";
+const DEFAULT_NVIDIA_MODEL = "meta/llama-3.3-70b-instruct";
 
 export const MODEL_URLS = {
   openrouter: "https://openrouter.ai/api/v1/models",
   groq: "https://api.groq.com/openai/v1/models",
   cerebras: "https://api.cerebras.ai/v1/models",
-  mistral: "https://api.mistral.ai/v1/models"
+  mistral: "https://api.mistral.ai/v1/models",
+  nvidia: "https://integrate.api.nvidia.com/v1/models"
 };
 
 const getModel = (provider) => {
   if (provider === 'groq') return localStorage.getItem('groq_model') || DEFAULT_GROQ_MODEL;
   if (provider === 'cerebras') return localStorage.getItem('cerebras_model') || DEFAULT_CEREBRAS_MODEL;
   if (provider === 'mistral') return localStorage.getItem('mistral_model') || DEFAULT_MISTRAL_MODEL;
+  if (provider === 'nvidia') return localStorage.getItem('nvidia_model') || DEFAULT_NVIDIA_MODEL;
   if (provider === 'openrouter') return localStorage.getItem('openrouter_model') || DEFAULT_OPENROUTER_MODEL;
+  
+  // Custom provider model lookup
+  const customsRaw = localStorage.getItem('custom_providers');
+  if (customsRaw) {
+    try {
+      const customs = JSON.parse(customsRaw);
+      const current = customs.find(p => p.id === provider);
+      if (current && current.model) return current.model;
+    } catch (e) {
+      console.error("Failed to parse custom providers in getModel", e);
+    }
+  }
+
   return DEFAULT_OPENROUTER_MODEL;
 };
 
@@ -29,6 +48,8 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
   const model = modelOverride || getModel(provider);
 
   let url = OPENROUTER_API_URL;
+  let useProxy = false;
+  let baseRaw = "";
   let headers = {
     "Authorization": `Bearer ${apiKey}`,
     "Content-Type": "application/json"
@@ -43,10 +64,31 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
     url = CEREBRAS_API_URL;
   } else if (provider === 'mistral') {
     url = MISTRAL_API_URL;
+  } else if (provider === 'nvidia') {
+    url = `${CORS_PROXY}${NVIDIA_API_URL}`;
+  } else {
+    // Check if it's a custom provider
+    const customsRaw = localStorage.getItem('custom_providers');
+    if (customsRaw) {
+      try {
+        const customs = JSON.parse(customsRaw);
+        const current = customs.find(p => p.id === provider);
+        if (current && current.baseUrl) {
+          // Normalize base URL (ensure it doesn't end with /)
+          baseRaw = current.baseUrl.endsWith('/') ? current.baseUrl.slice(0, -1) : current.baseUrl;
+          useProxy = current.useProxy;
+          url = useProxy ? `${CORS_PROXY}${baseRaw}/chat/completions` : `${baseRaw}/chat/completions`;
+        }
+      } catch (e) {
+        console.error("Failed to parse custom providers in callAI", e);
+      }
+    }
   }
 
   // Defensive check: mismatch between model ID and provider
-  if (provider !== 'openrouter' && (model.includes('/') || model.includes('openai/') || model.includes('anthropic/'))) {
+  // Skip for custom providers as they might support any model ID format
+  const isHardcodedProvider = ['openrouter', 'groq', 'cerebras', 'mistral', 'nvidia'].includes(provider);
+  if (isHardcodedProvider && provider !== 'openrouter' && (model.includes('/') || model.includes('openai/') || model.includes('anthropic/'))) {
     console.warn(`Potential model/provider mismatch: Sending ${model} to ${provider}. This usually results in an empty response.`);
   }
 
@@ -111,6 +153,8 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
       errorMessage = `Rate limit hit. Wait a bit or switch provider/model. Details: ${errorMessage}`;
     } else if (response && response.status === 402) {
       errorMessage = `Payment Required: Your account balance is too low for this request. ${errorMessage}. Please add credits at https://openrouter.ai/credits or switch to a free model.`;
+    } else if (response && response.status === 504) {
+      errorMessage = `Gateway Timeout: The AI provider (or CORS proxy) took too long to respond. Try a smaller/faster model or try again later.`;
     }
     const err = new Error(errorMessage);
     if (response) err.code = response.status;
@@ -415,7 +459,7 @@ Return ONLY a JSON object with:
   "demographics": ["Demographic1", "Demographic2"]
 }
 
-IMPORTANT: Only return the title, genres, and demographics. Do NOT include description, year, or score.
+IMPORTANT: Only return the title, genres, and demographics. Do NOT include description or year.
 
 ${Array.isArray(instructions) && instructions.length > 0
         ? `Specific Instructions:\n${instructions.map(i => {
@@ -437,8 +481,7 @@ Return ONLY a JSON object with:
   "title": "Anime Title",
   "genres": ["Genre1", "Genre2"],
   "description": "Short description of the plot",
-  "year": 20XX,
-  "averageScore": 85
+  "year": 20XX
 }
 
 ${Array.isArray(instructions) && instructions.length > 0
@@ -465,7 +508,7 @@ Do not include any commentary, thoughts, or markdown boxes. Just the JSON.`;
 
 export const fetchModels = async (provider, apiKeys = {}) => {
   try {
-    const url = MODEL_URLS[provider];
+    let url = MODEL_URLS[provider];
     const headers = {};
 
     if (provider === 'groq' && apiKeys.groq) {
@@ -474,15 +517,54 @@ export const fetchModels = async (provider, apiKeys = {}) => {
       headers["Authorization"] = `Bearer ${apiKeys.cerebras}`;
     } else if (provider === 'mistral' && apiKeys.mistral) {
       headers["Authorization"] = `Bearer ${apiKeys.mistral}`;
+    } else if (provider === 'nvidia' && apiKeys.nvidia) {
+      headers["Authorization"] = `Bearer ${apiKeys.nvidia}`;
+      url = `${CORS_PROXY}${MODEL_URLS.nvidia}`;
+    } else if (MODEL_URLS[provider]) {
+      // standard providers with pre-defined URLs use provided keys or nothing
+    } else {
+      // Check for custom provider
+      const customsRaw = localStorage.getItem('custom_providers');
+      if (customsRaw) {
+        try {
+          const customs = JSON.parse(customsRaw);
+          const current = customs.find(p => p.id === provider);
+          if (current && current.baseUrl) {
+            let base = current.baseUrl.endsWith('/') ? current.baseUrl.slice(0, -1) : current.baseUrl;
+            
+            if (current.useProxy) {
+              url = `${CORS_PROXY}${base}/models`;
+            } else {
+              url = `${base}/models`;
+            }
+
+            if (current.apiKey) {
+              headers["Authorization"] = `Bearer ${current.apiKey}`;
+            }
+          }
+        } catch (e) {
+          console.error("Failed to parse custom providers in fetchModels", e);
+        }
+      }
+    }
+
+    if (!url) {
+      return [];
     }
 
     const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      return [];
+    }
+
     const data = await response.json();
-
     const modelsData = data.data || data;
-    if (!Array.isArray(modelsData)) return [];
+    if (!Array.isArray(modelsData)) {
+      return [];
+    }
 
-    return modelsData.map(m => {
+    const mappedModels = modelsData.map(m => {
       let contextLength = 0;
       let maxCompletionTokens = 0;
 
@@ -499,6 +581,13 @@ export const fetchModels = async (provider, apiKeys = {}) => {
       } else if (provider === 'mistral') {
         contextLength = m.max_context_length || 0;
         maxCompletionTokens = m.max_completion_tokens || 0;
+      } else if (provider === 'nvidia') {
+        contextLength = m.context_window || 0;
+        maxCompletionTokens = 0;
+      } else {
+        // Custom provider fallback: try to find common context/max token fields
+        contextLength = m.context_window || m.context_length || m.max_context_length || 0;
+        maxCompletionTokens = m.max_completion_tokens || 0;
       }
 
       return {
@@ -507,7 +596,14 @@ export const fetchModels = async (provider, apiKeys = {}) => {
         contextLength: parseInt(contextLength) || 0,
         maxCompletionTokens: parseInt(maxCompletionTokens) || 0
       };
-    }).sort((a, b) => a.name.localeCompare(b.name));
+    });
+
+    // Ensure uniqueness by ID
+    const uniqueModels = Array.from(
+      new Map(mappedModels.map(model => [model.id, model])).values()
+    ).sort((a, b) => a.name.localeCompare(b.name));
+
+    return uniqueModels;
   } catch (error) {
     console.error(`Failed to fetch models for ${provider}:`, error);
     return [];

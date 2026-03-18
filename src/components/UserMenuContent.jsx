@@ -27,6 +27,8 @@ export default function UserMenuContent({
     setCerebrasApiKey,
     mistralApiKey,
     setMistralApiKey,
+    nvidiaApiKey,
+    setNvidiaApiKey,
     aiProvider,
     setAiProvider,
     selectedModel,
@@ -72,9 +74,11 @@ export default function UserMenuContent({
     allProvidersModels = {},
     onRefreshModels,
     isModelsLoading = false,
-    initialView = 'main'
+    initialView = 'main',
+    customProviders = [],
+    setCustomProviders = () => { }
 }) {
-    const [currentView, setCurrentView] = useState(initialView); // 'main', 'about', 'api', 'instructions', 'regen', 'regen_options', 'excluded', 'effects', 'cloud', 'destruction', 'data_backup', 'console'
+    const [currentView, setCurrentView] = useState(initialView); // 'main', 'about', 'api', 'api_providers', 'api_custom_edit', 'instructions', 'regen', 'regen_options', 'excluded', 'effects', 'cloud', 'destruction', 'data_backup', 'console'
     const [regenTarget, setRegenTarget] = useState('watchlist'); // 'watchlist' or 'library'
     const [regenMode, setRegenMode] = useState('missing'); // 'all' or 'missing'
 
@@ -83,6 +87,7 @@ export default function UserMenuContent({
     const [searchQuery, setSearchQuery] = useState('');
     const [isModelListOpen, setIsModelListOpen] = useState(false);
     const [maxTokens, setMaxTokens] = useState(parseInt(localStorage.getItem('ai_max_tokens')) || 73728);
+    const [editingProvider, setEditingProvider] = useState(null); // Provider object for Add/Edit view
 
     // Animation Variants
     const mainVariants = performanceSettings.enhancedMotion ? {
@@ -154,6 +159,20 @@ export default function UserMenuContent({
         return currentModelData.contextLength > 0 ? currentModelData.contextLength : 131072;
     };
 
+    const hasProviderKey = () => {
+        if (aiProvider === 'openrouter') return true; // OpenRouter allows free models without key
+        if (aiProvider === 'groq') return !!groqApiKey;
+        if (aiProvider === 'cerebras') return !!cerebrasApiKey;
+        if (aiProvider === 'mistral') return !!mistralApiKey;
+        if (aiProvider === 'nvidia') return !!nvidiaApiKey;
+
+        // Check custom providers
+        const custom = customProviders.find(p => p.id === aiProvider);
+        if (custom) return !!custom.apiKey;
+
+        return !!apiKey; // Fallback to default apiKey
+    };
+
     // Per-model max tokens persistence and defaults
     useEffect(() => {
         if (!selectedModel) return;
@@ -191,14 +210,23 @@ export default function UserMenuContent({
         setSelectedModel(modelId);
         if (aiProvider === 'groq') localStorage.setItem('groq_model', modelId);
         else if (aiProvider === 'cerebras') localStorage.setItem('cerebras_model', modelId);
-        else localStorage.setItem('openrouter_model', modelId);
+        else if (aiProvider === 'mistral') localStorage.setItem('mistral_model', modelId);
+        else if (aiProvider === 'openrouter') localStorage.setItem('openrouter_model', modelId);
+        else {
+            // Update custom provider model
+            const newCustoms = customProviders.map(p =>
+                p.id === aiProvider ? { ...p, model: modelId } : p
+            );
+            setCustomProviders(newCustoms);
+        }
         setIsModelListOpen(false);
     };
 
-    const filteredModels = models.filter(m =>
-        m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.id.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredModels = models.filter(m => {
+        const matches = m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            m.id.toLowerCase().includes(searchQuery.toLowerCase());
+        return matches;
+    });
 
     const MenuHeader = ({ title, showBack = true, onBack }) => (
         <div className="sticky top-0 z-20 bg-[#1a1a2e]/80 backdrop-blur-xl border-b border-white/5 p-4 flex items-center gap-3">
@@ -452,7 +480,7 @@ export default function UserMenuContent({
 
 
                         </div>
-                    </motion.div >
+                    </motion.div>
                 )
                 }
 
@@ -484,58 +512,61 @@ export default function UserMenuContent({
                             variants={subViewVariants}
                             className="flex flex-col h-full"
                         >
-                            <MenuHeader title="API Settings" />
+                            <MenuHeader title="AI Provider Settings" />
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
-                                {/* Provider Selection - collapse when model list is open */}
-                                {!isModelListOpen && (
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between ml-1">
-                                            <label className="text-sm text-gray-400 font-medium">AI Provider</label>
+                                {/* Active Provider Info & Switcher Button */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between ml-1">
+                                        <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Active Provider</label>
+                                    </div>
+                                    <button
+                                        onClick={() => setCurrentView('api_providers')}
+                                        className="flex items-center justify-between w-full p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all group"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-400">
+                                                <Cloud size={20} />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-sm font-bold text-white">
+                                                    {[
+                                                        { id: 'cerebras', name: 'Cerebras' },
+                                                        { id: 'openrouter', name: 'OpenRouter' },
+                                                        { id: 'groq', name: 'Groq' },
+                                                        { id: 'mistral', name: 'Mistral' },
+                                                        { id: 'nvidia', name: 'Nvidia NIM' }
+                                                    ].find(p => p.id === aiProvider)?.name ||
+                                                        customProviders.find(p => p.id === aiProvider)?.name ||
+                                                        aiProvider}
+                                                </p>
+                                                <p className="text-xs text-gray-500 font-medium">Click to switch or manage</p>
+                                            </div>
                                         </div>
-                                        <div className="flex gap-1 p-1 bg-black/30 border border-white/10 rounded-xl">
-                                            {[
-                                                { id: 'cerebras', name: 'Cerebras' },
-                                                { id: 'openrouter', name: 'OpenRouter' },
-                                                { id: 'groq', name: 'Groq' },
-                                                { id: 'mistral', name: 'Mistral' }
-                                            ].map(provider => (
-                                                <button
-                                                    key={provider.id}
-                                                    onClick={() => {
-                                                        setAiProvider(provider.id);
-                                                        setSearchQuery(''); // Reset search query on provider switch
+                                        <ChevronRight size={18} className="text-gray-600 group-hover:text-gray-400 group-hover:translate-x-0.5 transition-all" />
+                                    </button>
+                                </div>
 
-                                                        // Load last used model for this provider if available
-                                                        let lastModel = localStorage.getItem(`${provider.id}_model`);
-                                                        if (!lastModel) {
-                                                            if (provider.id === 'cerebras') lastModel = 'gpt-oss-120b';
-                                                            else if (provider.id === 'groq') lastModel = 'llama-3.3-70b-versatile';
-                                                            else if (provider.id === 'mistral') lastModel = 'mistral-large-latest';
-                                                            else lastModel = DEFAULT_MODEL;
-                                                        } else {
-                                                            // Sanitize: If provider is NOT OpenRouter, model should NOT contain '/'
-                                                            if (provider.id !== 'openrouter' && lastModel.includes('/')) {
-                                                                if (provider.id === 'cerebras') lastModel = 'gpt-oss-120b';
-                                                                else if (provider.id === 'groq') lastModel = 'llama-3.3-70b-versatile';
-                                                                else if (provider.id === 'mistral') lastModel = 'mistral-large-latest';
-                                                            }
-                                                        }
-                                                        setSelectedModel(lastModel);
-
-                                                        // Trigger background fetch if models list for this provider is empty
-                                                        if (!allProvidersModels[provider.id] || allProvidersModels[provider.id].length === 0) {
-                                                            onRefreshModels(provider.id);
-                                                        }
-                                                    }}
-                                                    className={`flex-1 py-2 px-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${aiProvider === provider.id
-                                                        ? 'bg-violet-600/20 text-violet-300 border border-violet-500/30'
-                                                        : 'text-gray-500 hover:text-gray-400 border border-transparent'
-                                                        }`}
-                                                >
-                                                    {provider.name}
-                                                </button>
-                                            ))}
+                                {/* Custom Base URL for Custom Providers */}
+                                {customProviders.find(p => p.id === aiProvider) && (
+                                    <div className="space-y-3 p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10">
+                                        <div className="flex items-center gap-2 text-amber-400">
+                                            <Database size={16} />
+                                            <label className="text-xs font-bold uppercase tracking-wider">Custom Base URL</label>
                                         </div>
+                                        <div className="relative group">
+                                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-amber-400 transition-colors">
+                                                <ExternalLink size={16} />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={customProviders.find(p => p.id === aiProvider)?.baseUrl || ''}
+                                                readOnly
+                                                className="w-full bg-black/40 border border-white/5 rounded-xl py-3 pl-10 pr-4 text-sm text-gray-400 focus:outline-none"
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-amber-500/60 font-medium px-1">
+                                            To change the URL, edit this provider in the Switch Provider menu.
+                                        </p>
                                     </div>
                                 )}
 
@@ -543,12 +574,12 @@ export default function UserMenuContent({
                                 {!isModelListOpen && (
                                     <div className="space-y-2">
                                         <label className="text-sm text-gray-400 font-medium ml-1">
-                                            {aiProvider === 'groq' ? 'Groq Key' : aiProvider === 'cerebras' ? 'Cerebras Key' : aiProvider === 'mistral' ? 'Mistral Key' : 'OpenRouter Key'}
+                                            {aiProvider === 'groq' ? 'Groq Key' : aiProvider === 'cerebras' ? 'Cerebras Key' : aiProvider === 'mistral' ? 'Mistral Key' : aiProvider === 'nvidia' ? 'Nvidia Key' : 'API Key'}
                                         </label>
                                         <div className="relative">
                                             <input
                                                 type={isApiKeyVisible ? "text" : "password"}
-                                                value={aiProvider === 'groq' ? groqApiKey : aiProvider === 'cerebras' ? cerebrasApiKey : aiProvider === 'mistral' ? mistralApiKey : apiKey}
+                                                value={aiProvider === 'groq' ? groqApiKey : aiProvider === 'cerebras' ? cerebrasApiKey : aiProvider === 'mistral' ? mistralApiKey : aiProvider === 'nvidia' ? nvidiaApiKey : (customProviders.find(p => p.id === aiProvider)?.apiKey || apiKey)}
                                                 onChange={(e) => {
                                                     const key = e.target.value;
                                                     if (aiProvider === 'groq') {
@@ -560,13 +591,24 @@ export default function UserMenuContent({
                                                     } else if (aiProvider === 'mistral') {
                                                         setMistralApiKey(key);
                                                         localStorage.setItem('mistral_api_key', key);
+                                                    } else if (aiProvider === 'nvidia') {
+                                                        setNvidiaApiKey(key);
+                                                        localStorage.setItem('nvidia_api_key', key);
                                                     } else {
-                                                        setApiKey(key);
-                                                        localStorage.setItem('openrouter_api_key', key);
+                                                        const custom = customProviders.find(p => p.id === aiProvider);
+                                                        if (custom) {
+                                                            const newCustoms = customProviders.map(p =>
+                                                                p.id === aiProvider ? { ...p, apiKey: key } : p
+                                                            );
+                                                            setCustomProviders(newCustoms);
+                                                        } else {
+                                                            setApiKey(key);
+                                                            localStorage.setItem('openrouter_api_key', key);
+                                                        }
                                                     }
                                                 }}
                                                 onBlur={() => onRefreshModels(aiProvider)}
-                                                placeholder={aiProvider === 'groq' ? "gsk_..." : aiProvider === 'cerebras' ? "csk-..." : aiProvider === 'mistral' ? "Mistral API Key" : "sk-or-..."}
+                                                placeholder={aiProvider === 'groq' ? "gsk_..." : aiProvider === 'cerebras' ? "csk-..." : aiProvider === 'mistral' ? "Mistral API Key" : aiProvider === 'nvidia' ? "nvapi-..." : (customProviders.find(p => p.id === aiProvider) ? "Enter API Key..." : "sk-or-...")}
                                                 className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
                                             />
                                             <button
@@ -599,14 +641,15 @@ export default function UserMenuContent({
                                                     <div className="flex items-center justify-center py-4">
                                                         <Loader2 size={20} className="animate-spin text-violet-400" />
                                                     </div>
-                                                ) : (aiProvider !== 'openrouter' && !(aiProvider === 'groq' ? groqApiKey : aiProvider === 'cerebras' ? cerebrasApiKey : mistralApiKey)) ? (
+                                                ) : !hasProviderKey() ? (
                                                     <div className="text-center py-4 text-amber-400/80 text-xs px-4">
                                                         Please enter an API key first to load models.
                                                     </div>
                                                 ) : filteredModels.length === 0 ? (
                                                     <div className="text-center py-4 text-gray-500 text-xs">No models found</div>
                                                 ) : (
-                                                    filteredModels.map(model => (
+                                                    // Ensure uniqueness by ID even at render time to prevent React warnings
+                                                    Array.from(new Map(filteredModels.map(m => [m.id, m])).values()).map(model => (
                                                         <button
                                                             key={model.id}
                                                             data-model-id={model.id}
@@ -681,16 +724,253 @@ export default function UserMenuContent({
                                 {!isModelListOpen && (
                                     <div className="pt-4 border-t border-white/5">
                                         <a
-                                            href={aiProvider === 'groq' ? "https://console.groq.com/keys" : aiProvider === 'cerebras' ? "https://cloud.cerebras.ai/" : aiProvider === 'mistral' ? "https://console.mistral.ai/api-keys/" : "https://openrouter.ai/keys"}
+                                            href={aiProvider === 'groq' ? "https://console.groq.com/keys" : aiProvider === 'cerebras' ? "https://cloud.cerebras.ai/" : aiProvider === 'mistral' ? "https://console.mistral.ai/api-keys/" : aiProvider === 'nvidia' ? "https://build.nvidia.com/explore/discover" : "https://openrouter.ai/keys"}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="text-xs text-violet-400 hover:text-violet-300 hover:underline flex items-center justify-between group"
                                         >
-                                            <span>Get your {aiProvider === 'groq' ? 'Groq' : aiProvider === 'cerebras' ? 'Cerebras' : aiProvider === 'mistral' ? 'Mistral' : 'OpenRouter'} key &rarr;</span>
+                                            <span>Get your {aiProvider === 'groq' ? 'Groq' : aiProvider === 'cerebras' ? 'Cerebras' : aiProvider === 'mistral' ? 'Mistral' : aiProvider === 'nvidia' ? 'Nvidia' : 'OpenRouter'} key &rarr;</span>
                                             <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                                         </a>
                                     </div>
                                 )}
+                            </div>
+                        </motion.div>
+                    )
+                }
+
+                {
+                    currentView === 'api_providers' && (
+                        <motion.div
+                            key="api_providers"
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            variants={subViewVariants}
+                            className="flex flex-col h-full"
+                        >
+                            <MenuHeader title="Switch Provider" onBack={() => setCurrentView('api')} />
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+                                {/* Hardcoded Providers */}
+                                <div className="space-y-3">
+                                    <label className="text-xs text-gray-500 font-bold uppercase tracking-wider ml-1">Standard Providers</label>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {[
+                                            { id: 'cerebras', name: 'Cerebras' },
+                                            { id: 'openrouter', name: 'OpenRouter' },
+                                            { id: 'groq', name: 'Groq' },
+                                            { id: 'mistral', name: 'Mistral' },
+                                            { id: 'nvidia', name: 'Nvidia NIM' }
+                                        ].map(provider => (
+                                            <button
+                                                key={provider.id}
+                                                onClick={() => {
+                                                    setAiProvider(provider.id);
+                                                    setCurrentView('api');
+                                                    onRefreshModels(provider.id);
+                                                }}
+                                                className={`flex items-center justify-between p-4 rounded-xl border transition-all ${aiProvider === provider.id
+                                                    ? 'bg-violet-600/10 border-violet-500/50 text-white'
+                                                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20'
+                                                    }`}
+                                            >
+                                                <span className="text-sm font-bold">{provider.name}</span>
+                                                {aiProvider === provider.id && <Check size={16} className="text-violet-400" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Custom Providers */}
+                                <div className="space-y-3 pt-2">
+                                    <div className="flex items-center justify-between ml-1">
+                                        <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Custom Providers</label>
+                                        <button
+                                            onClick={() => {
+                                                setEditingProvider({ id: '', name: '', baseUrl: '', apiKey: '', model: '' });
+                                                setCurrentView('api_custom_edit');
+                                            }}
+                                            className="text-[10px] bg-violet-600/20 text-violet-400 px-2 py-1 rounded-lg hover:bg-violet-600/30 transition-all font-bold flex items-center gap-1"
+                                        >
+                                            <Plus size={10} />
+                                            Add New
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {customProviders.length === 0 ? (
+                                            <div className="p-8 text-center rounded-xl bg-white/5 border border-dashed border-white/10">
+                                                <CloudOff size={24} className="mx-auto text-gray-600 mb-2 opacity-50" />
+                                                <p className="text-xs text-gray-500 font-medium">No custom providers saved</p>
+                                            </div>
+                                        ) : (
+                                            customProviders.map(provider => (
+                                                <div
+                                                    key={provider.id}
+                                                    className={`group relative flex items-center justify-between p-4 rounded-xl border transition-all ${aiProvider === provider.id
+                                                        ? 'bg-violet-600/10 border-violet-500/50'
+                                                        : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                                                        }`}
+                                                >
+                                                    <button
+                                                        onClick={() => {
+                                                            setAiProvider(provider.id);
+                                                            setCurrentView('api');
+                                                            onRefreshModels(provider.id);
+                                                        }}
+                                                        className="flex-1 text-left"
+                                                    >
+                                                        <span className={`text-sm font-bold ${aiProvider === provider.id ? 'text-white' : 'text-gray-400'}`}>
+                                                            {provider.name}
+                                                        </span>
+                                                        <p className="text-[10px] text-gray-500 truncate max-w-[180px]">{provider.baseUrl}</p>
+                                                    </button>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingProvider(provider);
+                                                                setCurrentView('api_custom_edit');
+                                                            }}
+                                                            className="p-2 text-gray-500 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                                                        >
+                                                            <Info size={16} />
+                                                        </button>
+                                                        {aiProvider === provider.id && <Check size={16} className="text-violet-400" />}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )
+                }
+
+                {
+                    currentView === 'api_custom_edit' && (
+                        <motion.div
+                            key="api_custom_edit"
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            variants={subViewVariants}
+                            className="flex flex-col h-full"
+                        >
+                            <MenuHeader title={editingProvider?.id ? "Edit Provider" : "New Provider"} onBack={() => setCurrentView('api_providers')} />
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+                                <div className="space-y-5">
+                                    <div className="space-y-2">
+                                        <label className="text-xs text-gray-500 font-bold uppercase tracking-wider ml-1">Provider Name</label>
+                                        <input
+                                            type="text"
+                                            value={editingProvider?.name || ''}
+                                            onChange={(e) => setEditingProvider({ ...editingProvider, name: e.target.value })}
+                                            placeholder="e.g. Local Ollama"
+                                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-violet-500 transition-all"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-xs text-gray-500 font-bold uppercase tracking-wider ml-1">Base URL</label>
+                                        <input
+                                            type="text"
+                                            value={editingProvider?.baseUrl || ''}
+                                            onChange={(e) => setEditingProvider({ ...editingProvider, baseUrl: e.target.value })}
+                                            placeholder="https://localhost:11434/v1"
+                                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-violet-500 transition-all"
+                                        />
+                                        <p className="text-[10px] text-gray-600 px-1 italic">The OpenAI-compatible endpoint. Should NOT include /chat/completions</p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-xs text-gray-500 font-bold uppercase tracking-wider ml-1">API Key (Optional)</label>
+                                        <div className="relative">
+                                            <input
+                                                type={isApiKeyVisible ? "text" : "password"}
+                                                value={editingProvider?.apiKey || ''}
+                                                onChange={(e) => setEditingProvider({ ...editingProvider, apiKey: e.target.value })}
+                                                placeholder="Key for this provider..."
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-violet-500 transition-all"
+                                            />
+                                            <button
+                                                onClick={() => setIsApiKeyVisible(!isApiKeyVisible)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 p-1"
+                                            >
+                                                {isApiKeyVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* CORS Proxy Toggle */}
+                                    <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
+                                        <div className="flex flex-col gap-0.5">
+                                            <label className="text-xs font-bold text-white uppercase tracking-wider">Use CORS Proxy</label>
+                                            <p className="text-[10px] text-gray-500">Enable if the provider blocks browser requests (CORS)</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setEditingProvider({ ...editingProvider, useProxy: !editingProvider.useProxy })}
+                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${editingProvider?.useProxy ? 'bg-violet-600' : 'bg-white/10'
+                                                }`}
+                                        >
+                                            <span
+                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${editingProvider?.useProxy ? 'translate-x-6' : 'translate-x-1'
+                                                    }`}
+                                            />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="pt-6 space-y-3">
+                                    <button
+                                        onClick={() => {
+                                            if (!editingProvider.name || !editingProvider.baseUrl) {
+                                                toast.error("Name and Base URL are required");
+                                                return;
+                                            }
+                                            const newProvider = {
+                                                ...editingProvider,
+                                                id: editingProvider.id || `custom-${Date.now()}`
+                                            };
+                                            const exists = customProviders.find(p => p.id === newProvider.id);
+                                            if (exists) {
+                                                setCustomProviders(customProviders.map(p => p.id === newProvider.id ? newProvider : p));
+                                            } else {
+                                                setCustomProviders([...customProviders, newProvider]);
+                                            }
+                                            setAiProvider(newProvider.id);
+                                            setCurrentView('api');
+                                            onRefreshModels(newProvider.id);
+                                        }}
+                                        className="w-full py-4 rounded-2xl bg-violet-600 text-white font-bold text-sm shadow-lg shadow-violet-900/20 hover:bg-violet-500 transition-all"
+                                    >
+                                        {editingProvider?.id ? "Update Provider" : "Save Provider"}
+                                    </button>
+
+                                    {editingProvider?.id && (
+                                        <button
+                                            onClick={() => {
+                                                setConfirmConfig({
+                                                    title: "Delete Provider?",
+                                                    message: `Are you sure you want to remove "${editingProvider.name}"? This cannot be undone.`,
+                                                    actionLabel: "Delete",
+                                                    isDanger: true,
+                                                    onConfirm: () => {
+                                                        const newCustoms = customProviders.filter(p => p.id !== editingProvider.id);
+                                                        setCustomProviders(newCustoms);
+                                                        if (aiProvider === editingProvider.id) {
+                                                            setAiProvider('cerebras');
+                                                        }
+                                                        setCurrentView('api_providers');
+                                                        setConfirmConfig(null);
+                                                    }
+                                                });
+                                            }}
+                                            className="w-full py-4 rounded-2xl bg-red-500/10 text-red-400 border border-red-500/20 font-bold text-sm hover:bg-red-500/20 transition-all"
+                                        >
+                                            Delete Provider
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </motion.div>
                     )
@@ -1481,10 +1761,10 @@ export default function UserMenuContent({
                         </motion.div>
                     )
                 }
-            </AnimatePresence >
+            </AnimatePresence>
 
             {/* Generic Confirmation Modal */}
-            < AnimatePresence >
+            <AnimatePresence>
                 {confirmConfig && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                         <motion.div
@@ -1572,7 +1852,7 @@ export default function UserMenuContent({
                         </motion.div>
                     )
                 }
-            </AnimatePresence >
+            </AnimatePresence>
         </>
     );
 }
