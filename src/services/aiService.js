@@ -10,7 +10,7 @@ const ALLORIGINS_PROXY = "https://api.allorigins.win/get?url=";
 const CORS_ANYWHERE = "https://cors-anywhere.herokuapp.com/";
 
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const NVIDIA_API_URL = "https://anipickcors.hhhoutlook394.workers.dev/";
+const NVIDIA_API_URL = isLocalhost ? "/api/nvidia/v1/chat/completions" : "https://anipickcors.hhhoutlook394.workers.dev/v1/chat/completions";
 
 const DEFAULT_OPENROUTER_MODEL = "tngtech/deepseek-r1t2-chimera:free";
 const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
@@ -23,7 +23,7 @@ export const MODEL_URLS = {
   groq: "https://api.groq.com/openai/v1/models",
   cerebras: "https://api.cerebras.ai/v1/models",
   mistral: "https://api.mistral.ai/v1/models",
-  nvidia: isLocalhost ? "/api/nvidia/v1/models" : "https://integrate.api.nvidia.com/v1/models"
+  nvidia: isLocalhost ? "/api/nvidia/v1/models" : "https://anipickcors.hhhoutlook394.workers.dev/v1/models"
 };
 
 const getModel = (provider) => {
