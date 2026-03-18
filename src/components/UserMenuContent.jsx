@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     LogOut, User, LayoutGrid, Sparkles, ArrowUp, ArrowDown, Plus, X,
     Play, Search, Info, Key, Download, Upload, RefreshCw, Heart, Trash2,
-    ChevronLeft, Check, Copy, ExternalLink, Loader2, Eye, EyeOff, ChevronDown, ChevronRight, Undo, Zap, Wind, Cloud, CloudOff, Database, Calendar, Terminal
+    ChevronLeft, Check, Copy, ExternalLink, Loader2, Eye, EyeOff, ChevronDown, ChevronRight, Undo, Zap, Wind, Cloud, CloudOff, Database, Calendar, Terminal, Tag
 } from 'lucide-react';
 import AboutContent from './AboutContent';
 import { fetchModels as fetchModelsApi } from '../services/aiService';
@@ -76,6 +76,7 @@ export default function UserMenuContent({
 }) {
     const [currentView, setCurrentView] = useState(initialView); // 'main', 'about', 'api', 'instructions', 'regen', 'regen_options', 'excluded', 'effects', 'cloud', 'destruction', 'data_backup', 'console'
     const [regenTarget, setRegenTarget] = useState('watchlist'); // 'watchlist' or 'library'
+    const [regenMode, setRegenMode] = useState('missing'); // 'all' or 'missing'
 
     // API Settings State
     const [isApiKeyVisible, setIsApiKeyVisible] = useState(false);
@@ -1011,7 +1012,10 @@ export default function UserMenuContent({
 
                                 <div className="space-y-3">
                                     <button
-                                        onClick={() => onRegen('all', regenTarget)}
+                                        onClick={() => {
+                                            setRegenMode('all');
+                                            setCurrentView('regen_refresh_mode');
+                                        }}
                                         className="w-full p-4 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-300 hover:bg-violet-600/40 hover:border-violet-500/50 transition-all text-left"
                                     >
                                         <div className="font-bold text-sm">Regenerate All</div>
@@ -1020,7 +1024,10 @@ export default function UserMenuContent({
                                         </div>
                                     </button>
                                     <button
-                                        onClick={() => onRegen('missing', regenTarget)}
+                                        onClick={() => {
+                                            setRegenMode('missing');
+                                            setCurrentView('regen_refresh_mode');
+                                        }}
                                         disabled={(regenTarget === 'watchlist' ? watchlist : library).filter(item => !item.description || item.description === '').length === 0}
                                         className="w-full p-4 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
@@ -1036,6 +1043,70 @@ export default function UserMenuContent({
                                         <Sparkles size={16} className="text-pink-400 shrink-0" />
                                         <p className="text-[11px] text-pink-300/60 leading-relaxed">
                                             This will use your AI credits and can take a moment depending on the number of items.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )
+                }
+
+                {
+                    currentView === 'regen_refresh_mode' && (
+                        <motion.div
+                            key="regen_refresh_mode"
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            variants={subViewVariants}
+                            className="flex flex-col h-full"
+                        >
+                            <MenuHeader
+                                title="Refresh Options"
+                                onBack={() => setCurrentView('regen_options')}
+                            />
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                                <p className="text-sm text-gray-400 mb-6 font-medium">
+                                    Choose how to refresh your <span className="text-white font-bold">{regenTarget === 'watchlist' ? 'Watchlist' : 'Library'}</span> items ({regenMode === 'all' ? 'All' : 'Missing Only'}).
+                                </p>
+
+                                <div className="space-y-4">
+                                    <button
+                                        onClick={() => onRegen(regenMode, regenTarget, 'all')}
+                                        className="w-full p-4 rounded-xl text-left bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 transition-all group"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center text-violet-400 group-hover:rotate-180 transition-transform duration-500">
+                                                <RefreshCw size={20} />
+                                            </div>
+                                            <div>
+                                                <div className="text-white font-bold text-sm">Refresh All Info</div>
+                                                <div className="text-xs text-gray-500 mt-0.5">Full regeneration (genres, description, year)</div>
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    <button
+                                        onClick={() => onRegen(regenMode, regenTarget, 'genres')}
+                                        className="w-full p-4 rounded-xl text-left bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all group"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                                <Tag size={20} />
+                                            </div>
+                                            <div>
+                                                <div className="text-white font-bold text-sm">Refresh Genres Only</div>
+                                                <div className="text-xs text-gray-500 mt-0.5">Update genres only, preserve other metadata</div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                </div>
+
+                                <div className="mt-8 pt-6 border-t border-white/5">
+                                    <div className="flex items-center gap-3 p-3 rounded-lg bg-pink-500/5 border border-pink-500/10">
+                                        <Sparkles size={16} className="text-pink-400 shrink-0" />
+                                        <p className="text-[11px] text-pink-300/60 leading-relaxed">
+                                            Refreshing genres only is faster and uses fewer tokens.
                                         </p>
                                     </div>
                                 </div>

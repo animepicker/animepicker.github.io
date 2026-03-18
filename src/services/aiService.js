@@ -21,7 +21,8 @@ const getModel = (provider) => {
   if (provider === 'groq') return localStorage.getItem('groq_model') || DEFAULT_GROQ_MODEL;
   if (provider === 'cerebras') return localStorage.getItem('cerebras_model') || DEFAULT_CEREBRAS_MODEL;
   if (provider === 'mistral') return localStorage.getItem('mistral_model') || DEFAULT_MISTRAL_MODEL;
-  return localStorage.getItem('openrouter_model') || DEFAULT_OPENROUTER_MODEL;
+  if (provider === 'openrouter') return localStorage.getItem('openrouter_model') || DEFAULT_OPENROUTER_MODEL;
+  return DEFAULT_OPENROUTER_MODEL;
 };
 
 const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, modelOverride = null) => {
@@ -396,33 +397,63 @@ ${customInstructions.filter(i => i.trim()).map(i => {
   }
 };
 
-export const getAnimeInfo = async (title, apiKey, provider = 'openrouter', instructions = [], model = null) => {
+export const getAnimeInfo = async (title, apiKey, provider = 'openrouter', instructions = [], model = null, mode = 'all') => {
   if (!apiKey) {
     return { title, genres: [], description: "Add API key to load details" };
   }
 
-  const prompt = `Provide detailed information about the anime "${title}" in JSON format.
-  Return ONLY a JSON object with: 
-  {
-    "title": "Anime Title",
-    "genres": ["Genre1", "Genre2"],
-    "description": "Short description of the plot",
-    "year": 20XX,
-    "averageScore": 85
+  // Build prompt based on mode
+  let prompt;
+
+  if (mode === 'genres') {
+    // Optimized prompt for genre-only refresh
+    prompt = `Provide ONLY genre and demographic information about the anime "${title}" in JSON format.
+Return ONLY a JSON object with:
+{
+  "title": "Anime Title",
+  "genres": ["Genre1", "Genre2"],
+  "demographics": ["Demographic1", "Demographic2"]
+}
+
+IMPORTANT: Only return the title, genres, and demographics. Do NOT include description, year, or score.
+
+${Array.isArray(instructions) && instructions.length > 0
+        ? `Specific Instructions:\n${instructions.map(i => {
+          let clean = i.trim();
+          if (clean.toUpperCase().startsWith('[ALWAYS]')) {
+            clean = clean.substring(8).trim();
+          }
+          return `- ${clean}`;
+        }).join('\n')}`
+        : ""
+      }
+
+Do not include any commentary, thoughts, or markdown boxes. Just the JSON.`;
+  } else {
+    // Full info prompt (default 'all' mode)
+    prompt = `Provide detailed information about the anime "${title}" in JSON format.
+Return ONLY a JSON object with:
+{
+  "title": "Anime Title",
+  "genres": ["Genre1", "Genre2"],
+  "description": "Short description of the plot",
+  "year": 20XX,
+  "averageScore": 85
+}
+
+${Array.isArray(instructions) && instructions.length > 0
+        ? `Specific Instructions:\n${instructions.map(i => {
+          let clean = i.trim();
+          if (clean.toUpperCase().startsWith('[ALWAYS]')) {
+            clean = clean.substring(8).trim();
+          }
+          return `- ${clean}`;
+        }).join('\n')}`
+        : ""
+      }
+
+Do not include any commentary, thoughts, or markdown boxes. Just the JSON.`;
   }
-  
-  ${Array.isArray(instructions) && instructions.length > 0
-      ? `Specific Instructions:\n${instructions.map(i => {
-        let clean = i.trim();
-        if (clean.toUpperCase().startsWith('[ALWAYS]')) {
-          clean = clean.substring(8).trim();
-        }
-        return `- ${clean}`;
-      }).join('\n')}`
-      : ""
-    }
-  
-  Do not include any commentary, thoughts, or markdown boxes. Just the JSON.`;
 
   try {
     const text = await callAI(prompt, apiKey, provider, null, model);

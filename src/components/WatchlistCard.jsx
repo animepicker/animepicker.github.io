@@ -1,11 +1,11 @@
 // Fix missing imports if any
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, LayoutGrid, X, Calendar, Tag, Sparkles, RefreshCw, EyeOff, PlayCircle } from 'lucide-react';
 import { getAnimeImage } from '../services/jikanService';
 import { formatTags } from '../utils/tagUtils';
 
-export default function WatchlistCard({ item, onClick, onMoveToLibrary, onRemove, onGenerateInfo, loadingItems, onExclude }) {
+export default function WatchlistCard({ item, onClick, onMoveToLibrary, onRemove, onGenerateInfo, loadingItems, onExclude, onOpenRefreshModal, enhancedMotion = true }) {
     const [imageUrl, setImageUrl] = useState(null);
 
     const isLoading = Array.isArray(loadingItems) && (loadingItems.includes(item.title) || loadingItems.includes(item.id));
@@ -41,8 +41,8 @@ export default function WatchlistCard({ item, onClick, onMoveToLibrary, onRemove
     const content = (
         <div
             onClick={() => onClick({ ...item, image: imageUrl || item.image })}
-            className={`group relative bg-[#12121f] rounded-2xl overflow-hidden border border-white/5 transition-all duration-300 cursor-pointer flex flex-col h-full 
-                ${isMobile ? 'low-power-card' : 'hover:border-rose-500/30 hover:shadow-[0_0_20px_rgba(225,29,72,0.15)]'}`}
+            className={`group relative bg-[#12121f] rounded-2xl overflow-hidden border border-white/5 transition-all duration-300 cursor-pointer flex flex-col h-full
+        ${isMobile ? 'low-power-card' : 'hover:border-rose-500/30 hover:shadow-[0_0_20px_rgba(225,29,72,0.15)]'}`}
         >
             {/* Image Area */}
             <div className="relative aspect-[2/3] bg-black/50 border-b border-white/5 overflow-hidden">
@@ -78,8 +78,9 @@ export default function WatchlistCard({ item, onClick, onMoveToLibrary, onRemove
                     >
                         <EyeOff size={16} />
                     </button>
+                    {/* Refresh button - opens modal */}
                     <button
-                        onClick={() => onGenerateInfo(item, item.id, 'watchlist')}
+                        onClick={() => onOpenRefreshModal(item, 'watchlist')}
                         disabled={isLoading}
                         className="p-2 rounded-xl bg-black/60 hover:bg-violet-600 text-gray-300 hover:text-white shadow-lg transition-all disabled:opacity-50"
                         title="Regenerate info"

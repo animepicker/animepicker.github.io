@@ -1,5 +1,5 @@
 // Demographics to prioritize
-const DEMOGRAPHICS = ['Shounen', 'Shonen', 'Seinen', 'Shoujo', 'Shojo', 'Josei', 'Kids', 'Kodomomuke'];
+export const DEMOGRAPHICS = ['Shounen', 'Shonen', 'Seinen', 'Shoujo', 'Shojo', 'Josei', 'Kids', 'Kodomomuke'];
 
 /**
  * Formats tags by prioritizing demographics and limiting the visible count.

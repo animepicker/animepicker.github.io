@@ -8,8 +8,10 @@ import AboutContent from './components/AboutContent';
 import AuthModal from './components/AuthModal';
 import UserMenuContent from './components/UserMenuContent';
 import ExcludeModal from './components/ExcludeModal';
+import RefreshModeModal from './components/RefreshModeModal';
 import { getRecommendations, getAnimeInfo, fetchModels } from './services/aiService';
 import { getAnimeImage, searchAnime, getAnimeDetails } from './services/jikanService';
+import { enqueueEnrichmentJob, initializeEnrichmentQueue } from './services/enrichmentQueue';
 import {
     getCurrentUser,
     signup,
@@ -39,6 +41,8 @@ import {
     googleLogout,
     getUserProfile
 } from './services/googleDriveService';
+
+import { DEMOGRAPHICS } from './utils/tagUtils';
 
 const getSafeTitle = (item) => {
     if (!item) return '';
@@ -100,6 +104,7 @@ function App() {
     const [isLoading, setIsLoading] = useState(false);
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [loadingItems, setLoadingItems] = useState([]);
+    const [generatingRecItems, setGeneratingRecItems] = useState([]);
     const [activeTab, setActiveTab] = useState('recommendations');
     const [performanceSettings, setPerformanceSettings] = useState(() => {
         const saved = localStorage.getItem('performance_settings');
@@ -143,6 +148,38 @@ function App() {
         cerebras: false,
         mistral: false
     });
+
+    useEffect(() => {
+        // Initialize enrichment queue for background processing
+        initializeEnrichmentQueue();
+
+        // Listen for enrichment events from background queue
+        const handleEnrichment = (event) => {
+            const { listType, items } = event.detail || {};
+            console.log('[App] Received enrichment event:', { listType, items });
+            if (!listType || !items) return;
+
+            if (listType === 'library') {
+                console.log('[App] Updating library with:', items);
+                setLibrary(items);
+                libraryRef.current = items;
+            } else if (listType === 'watchlist') {
+                console.log('[App] Updating watchlist with:', items);
+                setWatchlist(items);
+                watchlistRef.current = items;
+            } else if (listType === 'recommendations') {
+                console.log('[App] Updating recommendations with:', items);
+                setRecommendations(items);
+                recommendationsRef.current = items;
+            }
+        };
+
+        window.addEventListener('anime-enriched', handleEnrichment);
+
+        return () => {
+            window.removeEventListener('anime-enriched', handleEnrichment);
+        };
+    }, []);
 
     useEffect(() => {
         const originalConsole = {
@@ -293,6 +330,11 @@ function App() {
     // Exclude Modal State
     const [showExcludeModal, setShowExcludeModal] = useState(false);
     const [itemToExclude, setItemToExclude] = useState(null);
+
+    // Refresh Mode Modal State
+    const [showRefreshModal, setShowRefreshModal] = useState(false);
+    const [refreshItem, setRefreshItem] = useState(null);
+    const [refreshSourceType, setRefreshSourceType] = useState(null); // 'library', 'watchlist', etc.
 
     // Google Sync State
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -483,6 +525,37 @@ function App() {
         }
         libraryRef.current = library;
     }, [library, currentUser, markLocalChange]);
+
+    // Scan for missing demographics on initial load
+    useEffect(() => {
+        if (!isLoadingLibrary.current && currentUser) {
+            console.log('[App] Scanning for items missing demographics...');
+
+            // Check library
+            library.forEach(item => {
+                const genres = item.genres || [];
+                const hasDemographic = genres.some(g =>
+                    DEMOGRAPHICS.some(d => d.toLowerCase() === g.toLowerCase())
+                );
+
+                if (!hasDemographic) {
+                    enqueueEnrichmentJob({ ...item, listType: 'library' });
+                }
+            });
+
+            // Check watchlist
+            watchlist.forEach(item => {
+                const genres = item.genres || [];
+                const hasDemographic = genres.some(g =>
+                    DEMOGRAPHICS.some(d => d.toLowerCase() === g.toLowerCase())
+                );
+
+                if (!hasDemographic) {
+                    enqueueEnrichmentJob({ ...item, listType: 'watchlist' });
+                }
+            });
+        }
+    }, [isLoadingLibrary.current, !!currentUser]);
 
     // Body scroll lock effect
     useEffect(() => {
@@ -1123,6 +1196,13 @@ function App() {
         if (typeof titleOrAnime === 'string' && getCurrentApiKey()) {
             generateInfoForItem(title, newItem.id);
         }
+
+        // Enqueue background enrichment job
+        if (typeof titleOrAnime === 'object' && titleOrAnime) {
+            enqueueEnrichmentJob({ ...titleOrAnime, title, listType: 'library' });
+        } else if (typeof titleOrAnime === 'string') {
+            enqueueEnrichmentJob({ title, listType: 'library' });
+        }
     }, [getCurrentApiKey]);
 
 
@@ -1160,7 +1240,7 @@ function App() {
         return 'AI request failed. Try again or switch model/provider.';
     };
 
-    const generateInfoForItem = async (originalTitle, itemId = null, targetList = 'library') => {
+    const generateInfoForItem = async (originalTitle, itemId = null, targetList = 'library', mode = 'all') => {
         if (!getCurrentApiKey()) {
             toast.error("Please enter an API Key first.", {
                 action: {
@@ -1186,20 +1266,41 @@ function App() {
         setLoadingItems(prev => Array.isArray(prev) ? [...prev, title] : [title]);
 
         try {
-            const data = await getAnimeInfo(title, getCurrentApiKey(), aiProvider, alwaysInstructions, selectedModel);
+            const data = await getAnimeInfo(title, getCurrentApiKey(), aiProvider, alwaysInstructions, selectedModel, mode);
 
-            // Create the new item object, preserving existing metadata
-            const newItem = {
-                ...(isObject ? originalTitle : {}), // Preserve ALL existing properties (notes, reasons, IDs, etc.)
-                id: (itemId || (isObject ? originalTitle.id : null) || Date.now()).toString(),
-                title: data.title || title,
-                genres: data.genres || [],
-                description: data.description || '',
-                averageScore: data.averageScore,
-                year: data.year,
-                bannerImage: data.bannerImage || (isObject ? originalTitle.bannerImage : null),
-                coverImage: data.coverImage || (isObject ? originalTitle.coverImage : null),
-            };
+            // Create the new item object based on mode
+            let newItem;
+
+            if (mode === 'genres') {
+                // Partial update: preserve all existing metadata, only update genres/demographics
+                newItem = {
+                    ...(isObject ? originalTitle : {}), // Preserve ALL existing properties
+                    id: (itemId || (isObject ? originalTitle.id : null) || Date.now()).toString(),
+                    title: data.title || title,
+                    genres: data.genres || (isObject ? originalTitle.genres : []),
+                    demographics: data.demographics || (isObject ? originalTitle.demographics : []),
+                    // Preserve all other fields from originalTitle
+                    description: isObject ? originalTitle.description : (data.description || ''),
+                    averageScore: isObject ? originalTitle.averageScore : data.averageScore,
+                    year: isObject ? originalTitle.year : data.year,
+                    bannerImage: isObject ? originalTitle.bannerImage : null,
+                    coverImage: isObject ? originalTitle.coverImage : null,
+                };
+            } else {
+                // Full update (default 'all' mode)
+                newItem = {
+                    ...(isObject ? originalTitle : {}), // Preserve ALL existing properties (notes, reasons, IDs, etc.)
+                    id: (itemId || (isObject ? originalTitle.id : null) || Date.now()).toString(),
+                    title: data.title || title,
+                    genres: data.genres || [],
+                    demographics: data.demographics || [],
+                    description: data.description || '',
+                    averageScore: data.averageScore,
+                    year: data.year,
+                    bannerImage: data.bannerImage || (isObject ? originalTitle.bannerImage : null),
+                    coverImage: data.coverImage || (isObject ? originalTitle.coverImage : null),
+                };
+            }
 
             if (targetList === 'watchlist') {
                 setWatchlist(prev => {
@@ -1261,7 +1362,7 @@ function App() {
         }
     };
 
-    const generateAllInfo = async (mode = 'missing', targetList = 'library') => {
+    const generateAllInfo = async (mode = 'missing', targetList = 'library', refreshMode = 'all') => {
         if (!getCurrentApiKey()) {
             toast.error("Please enter an API Key first.", {
                 action: {
@@ -1299,8 +1400,7 @@ function App() {
             for (let i = 0; i < itemsToGenerate.length; i += chunkSize) {
                 const chunk = itemsToGenerate.slice(i, i + chunkSize);
                 await Promise.all(chunk.map(async (item) => {
-                    const title = item.title || item;
-                    await generateInfoForItem(item, item.id, targetList);
+                    await generateInfoForItem(item, item.id, targetList, refreshMode);
                     completed++;
                 }));
 
@@ -1403,6 +1503,22 @@ function App() {
         handleExcludeItem(item, reason);
         setShowExcludeModal(false);
         setItemToExclude(null);
+    };
+
+    // Refresh Mode Modal Handlers
+    const openRefreshModal = (item, sourceType) => {
+        setRefreshItem(item);
+        setRefreshSourceType(sourceType);
+        setShowRefreshModal(true);
+    };
+
+    const handleRefreshSelect = (mode) => {
+        if (refreshItem && refreshSourceType) {
+            generateInfoForItem(refreshItem, refreshItem.id, refreshSourceType, mode);
+        }
+        setShowRefreshModal(false);
+        setRefreshItem(null);
+        setRefreshSourceType(null);
     };
 
     const handleExcludeItem = (item, reason) => {
@@ -1731,9 +1847,9 @@ function App() {
     };
 
     // Handle regenerate all from user menu
-    const handleRegenFromMenu = (mode, targetList) => {
+    const handleRegenFromMenu = (mode, targetList, refreshMode = 'all') => {
         setShowUserMenu(false);
-        generateAllInfo(mode, targetList);
+        generateAllInfo(mode, targetList, refreshMode);
     };
 
     // Restore requested item
@@ -1860,6 +1976,13 @@ function App() {
         // Auto-generate info if API key is present AND info is missing (e.g. added via search)
         if (getCurrentApiKey() && (!newItem.description || newItem.description === '')) {
             generateInfoForItem(title, newItem.id, 'watchlist');
+        }
+
+        // Enqueue background enrichment job
+        if (typeof item === 'object' && item) {
+            enqueueEnrichmentJob({ ...item, title, listType: 'watchlist' });
+        } else if (typeof item === 'string') {
+            enqueueEnrichmentJob({ title, listType: 'watchlist' });
         }
     };
 
@@ -2122,6 +2245,11 @@ function App() {
 
             setRecommendations(prev => [...prev, ...filteredData]);
 
+            // Enqueue background enrichment jobs for recommendations
+            filteredData.forEach(item => {
+                enqueueEnrichmentJob({ ...item, listType: 'recommendations' });
+            });
+
             // Pre-fetch images and details in background for all new picks
             filteredData.forEach(item => {
                 // Fetch image (legacy/fast)
@@ -2138,7 +2266,7 @@ function App() {
                                         description: details.synopsis || p.description,
                                         year: details.year || p.year,
                                         averageScore: details.score ? Math.round(details.score * 10) : p.averageScore,
-                                        genres: details.genres?.map(g => g.name) || p.genres,
+                                        genres: [...(details.demographics?.map(d => d.name) || []), ...(details.genres?.map(g => g.name) || [])] || p.genres,
                                         coverImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.coverImage,
                                         bannerImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.bannerImage,
                                         mal_id: details.mal_id
@@ -2157,23 +2285,132 @@ function App() {
             const message = filteredData.length < data.length
                 ? `Added ${filteredData.length} new picks (${data.length - filteredData.length} duplicates removed)`
                 : `Added ${filteredData.length} new picks!`;
-
-            toast.success(message, {
-                duration: 5000,
-            });
+            toast.success(message);
         } catch (error) {
             if (error.name === 'AbortError') {
-                // Ignore AbortError as it's handled in handleCancelGeneration
-                return;
+                console.log('Generation aborted');
+            } else {
+                console.error('Generation error:', error);
+                toast.error(error.message || "Failed to generate recommendations.");
             }
-            toast.error(getShortErrorMessage(error));
         } finally {
-            if (abortControllerRef.current === controller) {
-                abortControllerRef.current = null;
-            }
             setIsLoading(false);
+            abortControllerRef.current = null;
         }
     };
+
+    const handleGenerateSingleRecommendation = async (item) => {
+        if (isLoading) {
+            toast.error("Another generation is already in progress.");
+            return;
+        }
+        if (!getCurrentApiKey()) {
+            toast.error("Please enter an API Key first.", {
+                action: {
+                    label: 'Settings',
+                    onClick: () => {
+                        setUserMenuInitialView('api');
+                        setShowUserMenu(true);
+                    }
+                }
+            });
+            return;
+        }
+
+        const itemTitle = item.title;
+        setGeneratingRecItems(prev => [...prev, itemTitle]);
+
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
+        try {
+            // Recommendation from a single item and its notes
+            const data = await getRecommendations(
+                [item], // Only this item as source
+                getCurrentApiKey(),
+                [...library, ...watchlist, ...excludedItems, ...recommendations],
+                customInstructions,
+                generateCount,
+                aiProvider,
+                controller.signal,
+                selectedModel
+            );
+
+            const dataWithMeta = data.map(rec => ({
+                ...rec,
+                model: selectedModel,
+                provider: aiProvider,
+                sourceItem: itemTitle
+            }));
+
+            const libraryTitlesLower = library.map(getSafeTitle);
+            const watchlistTitlesLower = watchlist.map(getSafeTitle);
+            const recommendationsTitlesLower = recommendations.map(getSafeTitle);
+            const excludedTitlesLower = excludedItems.map(getSafeTitle);
+
+            const filteredData = dataWithMeta.filter(rec => {
+                const recTitle = rec.title?.toLowerCase().trim();
+                return !libraryTitlesLower.includes(recTitle) &&
+                    !watchlistTitlesLower.includes(recTitle) &&
+                    !recommendationsTitlesLower.includes(recTitle) &&
+                    !excludedTitlesLower.includes(recTitle);
+            });
+
+            if (filteredData.length === 0) {
+                toast.info(`No new recommendations found for "${itemTitle}". Try different instructions or model.`);
+            } else {
+                setRecommendations(prev => [...prev, ...filteredData]);
+                toast.success(`Generated ${filteredData.length} new recommendations based on "${itemTitle}"!`);
+
+                // Enqueue background enrichment jobs for new recommendations
+                filteredData.forEach(rec => {
+                    enqueueEnrichmentJob({ ...rec, listType: 'recommendations' });
+                });
+
+                // Switch to recommendations tab
+                handleTabSwitch('recommendations');
+
+                // Pre-fetch images and details
+                filteredData.forEach(rec => {
+                    getAnimeImage(rec.title).catch(() => { });
+                    getAnimeDetails(rec.title).then(details => {
+                        if (details) {
+                            setRecommendations(prev => {
+                                const updated = prev.map(p => {
+                                    if (p.id === rec.id) {
+                                        return {
+                                            ...p,
+                                            description: details.synopsis || p.description,
+                                            year: details.year || p.year,
+                                            averageScore: details.score ? Math.round(details.score * 10) : p.averageScore,
+                                            genres: [...(details.demographics?.map(d => d.name) || []), ...(details.genres?.map(g => g.name) || [])] || p.genres,
+                                            coverImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.coverImage,
+                                            bannerImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.bannerImage,
+                                            mal_id: details.mal_id
+                                        };
+                                    }
+                                    return p;
+                                });
+                                recommendationsRef.current = updated;
+                                return updated;
+                            });
+                        }
+                    }).catch(() => { });
+                });
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                console.log('Single generation aborted');
+            } else {
+                console.error('Single generation error:', error);
+                toast.error(error.message || "Failed to generate recommendations.");
+            }
+        } finally {
+            setGeneratingRecItems(prev => prev.filter(t => t !== itemTitle));
+            abortControllerRef.current = null;
+        }
+    };
+
 
     const removeFromRecommendations = useCallback((itemOrTitle, showToast = true) => {
         const title = typeof itemOrTitle === 'string' ? itemOrTitle : itemOrTitle?.title;
@@ -2444,7 +2681,7 @@ function App() {
         // Safe check for keys before fetching (except OpenRouter which is often free)
         const key = localStorage.getItem(`${providerToRefresh}_api_key`);
         if (providerToRefresh !== 'openrouter' && !key) {
-            console.log(`Skipping model fetch for ${providerToRefresh} (No API key)`);
+            console.debug(`Skipping model fetch for ${providerToRefresh} (No API key)`);
             return;
         }
 
@@ -2627,7 +2864,7 @@ function App() {
             {/* Search Modal */}
             <AnimatePresence>
                 {showSearchModal && (
-                    <div className="fixed inset-0 z-[70] flex items-start justify-center p-4 pt-16 md:items-center md:pt-4">
+                    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -3048,8 +3285,11 @@ function App() {
                                         onImport={() => importFileRef.current.click()}
                                         onGenerateInfo={generateInfoForItem}
                                         onExclude={openExcludeModal}
+                                        onOpenRefreshModal={openRefreshModal}
                                         enhancedMotion={performanceSettings.enhancedMotion}
                                         onOpenDetails={(item) => handleOpenDetails(item, 'watchlist')}
+                                        loadingItems={loadingItems}
+                                        generatingRecItems={generatingRecItems}
                                     />
                                 </div>
 
@@ -3066,14 +3306,17 @@ function App() {
                                         onGenerateAllInfo={generateAllInfo}
                                         onImport={() => importFileRef.current.click()}
                                         loadingItems={loadingItems}
+                                        generatingRecItems={generatingRecItems}
                                         searchQuery={searchQuery}
                                         onSearchChange={setSearchQuery}
                                         onUpdateNote={updateItemNote}
                                         isInLibrary={isInLibrary}
                                         isInWatchlist={isInWatchlist}
                                         onExclude={openExcludeModal}
+                                        onOpenRefreshModal={openRefreshModal}
                                         enhancedMotion={performanceSettings.enhancedMotion}
                                         onOpenDetails={(item) => handleOpenDetails(item, 'library')}
+                                        onGenerateRecommendation={handleGenerateSingleRecommendation}
                                     />
                                 </div>
                             </motion.div>
@@ -3864,6 +4107,14 @@ function App() {
                 onClose={() => setShowExcludeModal(false)}
                 onConfirm={handleConfirmExclude}
                 item={itemToExclude}
+                enhancedMotion={performanceSettings.enhancedMotion}
+            />
+
+            <RefreshModeModal
+                isOpen={showRefreshModal}
+                onClose={() => setShowRefreshModal(false)}
+                onSelect={handleRefreshSelect}
+                item={refreshItem}
                 enhancedMotion={performanceSettings.enhancedMotion}
             />
 

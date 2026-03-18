@@ -336,7 +336,7 @@ export const searchAnime = async (query) => {
             synopsis: item.synopsis,
             score: item.score,
             year: item.year || (item.aired?.from ? new Date(item.aired.from).getFullYear() : null),
-            genres: item.genres?.map(g => g.name) || []
+            genres: [...(item.demographics?.map(d => d.name) || []), ...(item.genres?.map(g => g.name) || [])]
         }));
     } catch (error) {
         console.warn("Jikan search failed:", error);

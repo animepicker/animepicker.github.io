@@ -7,7 +7,7 @@ import { formatTags } from '../utils/tagUtils';
 const ITEMS_PER_PAGE = 9; // 3 columns x 3 rows
 
 // Memoized anime card component
-const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExpanded, onToggleExpand, onGenerateInfo, onRemove, onClick, onMoveToWatchlist, onExclude }) {
+const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExpanded, onToggleExpand, onGenerateInfo, onRemove, onClick, onMoveToWatchlist, onExclude, onGenerateRecommendation, isGeneratingRec, onOpenRefreshModal }) {
     const [imageUrl, setImageUrl] = useState(null);
 
     useEffect(() => {
@@ -37,8 +37,8 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
     return (
         <div
             onClick={() => onClick(imageUrl)}
-            className={`group relative bg-[#12121f] rounded-xl overflow-hidden border border-white/5 transition-all duration-300 h-full flex flex-col cursor-pointer 
-                ${isMobile ? 'low-power-card' : 'hover:border-violet-500/30 hover:shadow-[0_0_20px_rgba(124,58,237,0.1)]'}`}
+            className={`group relative bg-[#12121f] rounded-xl overflow-hidden border border-white/5 transition-all duration-300 h-full flex flex-col cursor-pointer
+        ${isMobile ? 'low-power-card' : 'hover:border-violet-500/30 hover:shadow-[0_0_20px_rgba(124,58,237,0.1)]'}`}
         >
             {/* Portrait Image Area (Top) */}
             <div className="relative w-full aspect-[2/3] bg-black/50 border-b border-white/5 overflow-hidden">
@@ -70,14 +70,23 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
                         </button>
                     )}
                     <button
+                        onClick={() => onGenerateRecommendation(animeData)}
+                        className={`p-2 rounded-lg bg-black/60 hover:bg-amber-500 text-white transition-colors ${isGeneratingRec ? 'animate-pulse' : ''}`}
+                        title="Generate recommendations from this item"
+                        disabled={isGeneratingRec}
+                    >
+                        <Sparkles size={14} className={isGeneratingRec ? 'animate-spin' : ''} />
+                    </button>
+                    <button
                         onClick={() => onExclude(animeData)}
                         className="p-2 rounded-lg bg-black/60 hover:bg-gray-500 text-white transition-colors"
                         title="Exclude from recommendations"
                     >
                         <EyeOff size={14} />
                     </button>
+                    {/* Refresh button - opens modal */}
                     <button
-                        onClick={() => onGenerateInfo(animeData)}
+                        onClick={() => onOpenRefreshModal(animeData, 'library')}
                         disabled={isLoading}
                         className="p-2 rounded-lg bg-black/60 hover:bg-violet-600 text-white transition-colors disabled:opacity-50"
                         title="Regenerate info"
@@ -102,9 +111,9 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
                     </h3>
                 </div>
 
-                {isLoading ? (
+                {isLoading || isGeneratingRec ? (
                     <div className="flex items-center gap-2 text-violet-400 text-xs py-1">
-                        <span>Generating info...</span>
+                        <span>{isGeneratingRec ? 'Generating rec...' : 'Generating info...'}</span>
                     </div>
                 ) : hasInfo ? (
                     <>
@@ -172,7 +181,7 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
     );
 });
 
-export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGenerateAllInfo, onImport, loadingItems, searchQuery, onSearchChange, onUpdateNote, onMoveToWatchlist, onMoveToLibrary, onExclude, enhancedMotion, isInWatchlist, onOpenDetails }) {
+export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGenerateAllInfo, onImport, loadingItems, searchQuery, onSearchChange, onUpdateNote, onMoveToWatchlist, onMoveToLibrary, onExclude, onOpenRefreshModal, enhancedMotion, isInWatchlist, onOpenDetails, onGenerateRecommendation, generatingRecItems }) {
     const [expandedItems, setExpandedItems] = useState({});
     const [showDropdown, setShowDropdown] = useState(false);
     const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -492,6 +501,7 @@ export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGe
                                 : anime;
 
                             const isLoading = Array.isArray(loadingItems) && loadingItems.includes(animeData.title);
+                            const isGeneratingRec = Array.isArray(generatingRecItems) && generatingRecItems.includes(animeData.title);
                             const hasInfo = animeData.genres && animeData.genres.length > 0;
                             const isExpanded = expandedItems[animeData.title];
 
@@ -500,6 +510,7 @@ export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGe
                                     key={animeData.id || animeData.title}
                                     animeData={animeData}
                                     isLoading={isLoading}
+                                    isGeneratingRec={isGeneratingRec}
                                     hasInfo={hasInfo}
                                     isExpanded={expandedItems[animeData.title]}
                                     onToggleExpand={() => toggleExpand(animeData.title)}
@@ -508,6 +519,8 @@ export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGe
                                     onClick={(img) => onOpenDetails({ ...animeData, image: img || animeData.image })}
                                     onMoveToWatchlist={onMoveToWatchlist}
                                     onExclude={onExclude}
+                                    onGenerateRecommendation={onGenerateRecommendation}
+                                    onOpenRefreshModal={onOpenRefreshModal}
                                 />
                             );
                         })}

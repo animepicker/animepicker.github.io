@@ -32,3 +32,11 @@ temp
 
 # Temporary/Output files
 *.txt
+
+# Openspec directories
+.agent/
+.codex/
+.kilocode/
+.roo/
+.gemini/
+openspec/

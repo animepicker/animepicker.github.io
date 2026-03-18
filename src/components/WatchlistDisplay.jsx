@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, LayoutGrid, Heart, Upload, Check, RefreshCw } from 'lucide-react';
 import WatchlistCard from './WatchlistCard';
 
-export default function WatchlistDisplay({ watchlist, library, onRemove, onMoveToLibrary, onMoveToWatchlist, onUpdateNote, onImport, searchQuery, onSearchChange, onGenerateInfo, loadingItems, onExclude, enhancedMotion, isInLibrary, isInWatchlist, onOpenDetails }) {
+export default function WatchlistDisplay({ watchlist, library, onRemove, onMoveToLibrary, onMoveToWatchlist, onUpdateNote, onImport, searchQuery, onSearchChange, onGenerateInfo, loadingItems, onExclude, onOpenRefreshModal, enhancedMotion, isInLibrary, isInWatchlist, onOpenDetails }) {
     // const [searchQuery, setSearchQuery] = useState(''); // Lifted to App
     const [sortConfig, setSortConfig] = useState({ key: 'added', direction: 'desc' });
     const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -208,6 +208,7 @@ export default function WatchlistDisplay({ watchlist, library, onRemove, onMoveT
                                         onGenerateInfo={onGenerateInfo}
                                         loadingItems={loadingItems}
                                         onExclude={onExclude}
+                                        onOpenRefreshModal={onOpenRefreshModal}
                                     />
                                 ))}
                             </div>

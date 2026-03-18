@@ -25,7 +25,7 @@ export default function ExcludeModal({ isOpen, onClose, onConfirm, item, enhance
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[80] flex items-start justify-center p-4 pt-16 md:items-center md:pt-4">
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
