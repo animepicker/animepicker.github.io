@@ -4,9 +4,13 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const CEREBRAS_API_URL = "https://api.cerebras.ai/v1/chat/completions";
 const MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions";
-const NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 
-const CORS_PROXY = "https://corsproxy.io/?";
+// Multi-tiered proxy strategy
+const ALLORIGINS_PROXY = "https://api.allorigins.win/get?url=";
+const CORS_ANYWHERE = "https://cors-anywhere.herokuapp.com/";
+
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const NVIDIA_API_URL = "https://anipickcors.hhhoutlook394.workers.dev/";
 
 const DEFAULT_OPENROUTER_MODEL = "tngtech/deepseek-r1t2-chimera:free";
 const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
@@ -19,7 +23,7 @@ export const MODEL_URLS = {
   groq: "https://api.groq.com/openai/v1/models",
   cerebras: "https://api.cerebras.ai/v1/models",
   mistral: "https://api.mistral.ai/v1/models",
-  nvidia: "https://integrate.api.nvidia.com/v1/models"
+  nvidia: isLocalhost ? "/api/nvidia/v1/models" : "https://integrate.api.nvidia.com/v1/models"
 };
 
 const getModel = (provider) => {
@@ -65,7 +69,7 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
   } else if (provider === 'mistral') {
     url = MISTRAL_API_URL;
   } else if (provider === 'nvidia') {
-    url = `${CORS_PROXY}${NVIDIA_API_URL}`;
+    url = NVIDIA_API_URL;
   } else {
     // Check if it's a custom provider
     const customsRaw = localStorage.getItem('custom_providers');
@@ -77,7 +81,7 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
           // Normalize base URL (ensure it doesn't end with /)
           baseRaw = current.baseUrl.endsWith('/') ? current.baseUrl.slice(0, -1) : current.baseUrl;
           useProxy = current.useProxy;
-          url = useProxy ? `${CORS_PROXY}${baseRaw}/chat/completions` : `${baseRaw}/chat/completions`;
+          url = useProxy ? `${CORS_ANYWHERE}${baseRaw}/chat/completions` : `${baseRaw}/chat/completions`;
         }
       } catch (e) {
         console.error("Failed to parse custom providers in callAI", e);
@@ -107,23 +111,50 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
   const maxAttempts = 3;
   let response = null;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    response = await fetch(url, {
-      method: "POST",
-      headers: headers,
-      signal: signal,
-      body: JSON.stringify({
-        model: model,
-        max_tokens: parseInt(localStorage.getItem('ai_max_tokens')) || 73728,
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ]
-      })
-    });
+    try {
+      const fetchHeaders = { ...headers };
+      if (url.startsWith(CORS_ANYWHERE)) {
+        fetchHeaders["X-Requested-With"] = "XMLHttpRequest";
+      }
 
-    if (response.ok) break;
+      response = await fetch(url, {
+        method: "POST",
+        headers: fetchHeaders,
+        signal: signal,
+        body: JSON.stringify({
+          model: model,
+          max_tokens: provider === 'nvidia' ? 4096 : (parseInt(localStorage.getItem('ai_max_tokens')) || 8192),
+          messages: [
+            {
+              role: "user",
+              content: prompt
+            }
+          ]
+        })
+      });
+
+      if (response.ok) break;
+
+      // Fallback if direct request fails
+      if (attempt === 0 && !response.ok) {
+        if (provider === 'nvidia' && url === NVIDIA_API_URL && !isLocalhost) {
+          console.warn("NVIDIA direct request failed, trying cors-anywhere proxy...");
+          url = `${CORS_ANYWHERE}https://integrate.api.nvidia.com/v1/chat/completions`;
+          attempt--;
+          continue;
+        }
+      }
+    } catch (e) {
+      if (attempt === 0) {
+        if (provider === 'nvidia' && url === NVIDIA_API_URL && !isLocalhost) {
+          console.warn("NVIDIA direct fetch failed (CORS?), trying proxy...");
+          url = `${CORS_ANYWHERE}https://integrate.api.nvidia.com/v1/chat/completions`;
+          attempt--;
+          continue;
+        }
+      }
+      throw e;
+    }
 
     const isRateLimit = response.status === 429;
     const isTransient = response.status >= 500;
@@ -136,6 +167,10 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
   }
 
   if (!response || !response.ok) {
+    if (url.startsWith(CORS_ANYWHERE) && response && response.status === 403) {
+      throw new Error(`CORS Proxy requires activation. Please visit https://cors-anywhere.herokuapp.com/corsdemo to temporarily unlock access, then try again.`);
+    }
+
     let errorMessage = `API Error: ${response ? response.status : 'unknown'}`;
     try {
       const error = await response.json();
@@ -519,7 +554,7 @@ export const fetchModels = async (provider, apiKeys = {}) => {
       headers["Authorization"] = `Bearer ${apiKeys.mistral}`;
     } else if (provider === 'nvidia' && apiKeys.nvidia) {
       headers["Authorization"] = `Bearer ${apiKeys.nvidia}`;
-      url = `${CORS_PROXY}${MODEL_URLS.nvidia}`;
+      url = MODEL_URLS.nvidia;
     } else if (MODEL_URLS[provider]) {
       // standard providers with pre-defined URLs use provided keys or nothing
     } else {
@@ -533,7 +568,7 @@ export const fetchModels = async (provider, apiKeys = {}) => {
             let base = current.baseUrl.endsWith('/') ? current.baseUrl.slice(0, -1) : current.baseUrl;
             
             if (current.useProxy) {
-              url = `${CORS_PROXY}${base}/models`;
+              url = `${CORS_ANYWHERE}${base}/models`;
             } else {
               url = `${base}/models`;
             }
@@ -552,7 +587,49 @@ export const fetchModels = async (provider, apiKeys = {}) => {
       return [];
     }
 
-    const response = await fetch(url, { headers });
+    const fetchWithFallback = async (url, headers) => {
+      try {
+        const fetchHeaders = { ...headers };
+        if (url.startsWith(CORS_ANYWHERE)) {
+          fetchHeaders["X-Requested-With"] = "XMLHttpRequest";
+        }
+        
+        const res = await fetch(url, { headers: fetchHeaders });
+        if (res.ok) return res;
+        throw new Error(`Fetch failed: ${res.status}`);
+      } catch (e) {
+        // Fallback for NVIDIA direct
+        if (url === MODEL_URLS.nvidia && !isLocalhost) {
+          console.warn("NVIDIA models fetch failed, trying ALLORIGINS_PROXY fallback...");
+          const fallbackUrl = `${ALLORIGINS_PROXY}${encodeURIComponent("https://integrate.api.nvidia.com/v1/models")}`;
+          const fallbackRes = await fetch(fallbackUrl);
+          if (fallbackRes.ok) {
+            const data = await fallbackRes.json();
+            return new Response(data.contents, {
+              status: data.status?.http_code || 200,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+        }
+        // General proxy fallback for custom providers
+        if (url.startsWith(CORS_ANYWHERE)) {
+          console.warn("CORS_ANYWHERE failed in fetchModels, trying ALLORIGINS_PROXY...");
+          const targetUrl = url.replace(CORS_ANYWHERE, "");
+          const fallbackUrl = `${ALLORIGINS_PROXY}${encodeURIComponent(targetUrl)}`;
+          const fallbackRes = await fetch(fallbackUrl);
+          if (fallbackRes.ok) {
+            const data = await fallbackRes.json();
+            return new Response(data.contents, {
+              status: data.status?.http_code || 200,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+        }
+        throw e;
+      }
+    };
+
+    const response = await fetchWithFallback(url, headers);
     
     if (!response.ok) {
       return [];
