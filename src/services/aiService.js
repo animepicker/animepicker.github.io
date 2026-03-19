@@ -6,8 +6,8 @@ const CEREBRAS_API_URL = "https://api.cerebras.ai/v1/chat/completions";
 const MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions";
 
 // Multi-tiered proxy strategy
-const ALLORIGINS_PROXY = "https://api.allorigins.win/get?url=";
-const CORS_ANYWHERE = "https://cors-anywhere.herokuapp.com/";
+const PRIMARY_PROXY = "https://anipickcors.hhhoutlook394.workers.dev/?url=";
+const BACKUP_PROXY = "https://corsproxy.io/?url=";
 
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const NVIDIA_API_URL = isLocalhost ? "/api/nvidia/v1/chat/completions" : "https://anipickcors.hhhoutlook394.workers.dev/v1/chat/completions";
@@ -81,7 +81,7 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
           // Normalize base URL (ensure it doesn't end with /)
           baseRaw = current.baseUrl.endsWith('/') ? current.baseUrl.slice(0, -1) : current.baseUrl;
           useProxy = current.useProxy;
-          url = useProxy ? `${CORS_ANYWHERE}${baseRaw}/chat/completions` : `${baseRaw}/chat/completions`;
+          url = useProxy ? `${PRIMARY_PROXY}${baseRaw}/chat/completions` : `${baseRaw}/chat/completions`;
         }
       } catch (e) {
         console.error("Failed to parse custom providers in callAI", e);
@@ -108,14 +108,18 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
     return Math.min(500 * Math.pow(2, attempt), 4000);
   };
 
-  const maxAttempts = 3;
+  const maxAttempts = 4;
   let response = null;
+  let lastError = null;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (signal?.aborted) {
+      const abortError = new Error('Request aborted');
+      abortError.name = 'AbortError';
+      throw abortError;
+    }
+
     try {
       const fetchHeaders = { ...headers };
-      if (url.startsWith(CORS_ANYWHERE)) {
-        fetchHeaders["X-Requested-With"] = "XMLHttpRequest";
-      }
 
       response = await fetch(url, {
         method: "POST",
@@ -134,41 +138,57 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
       });
 
       if (response.ok) break;
-
-      // Fallback if direct request fails
-      if (attempt === 0 && !response.ok) {
-        if (provider === 'nvidia' && url === NVIDIA_API_URL && !isLocalhost) {
-          console.warn("NVIDIA direct request failed, trying cors-anywhere proxy...");
-          url = `${CORS_ANYWHERE}https://integrate.api.nvidia.com/v1/chat/completions`;
-          attempt--;
-          continue;
-        }
-      }
+      
+      lastError = new Error(`HTTP ${response.status}`);
+      lastError.status = response.status;
     } catch (e) {
-      if (attempt === 0) {
-        if (provider === 'nvidia' && url === NVIDIA_API_URL && !isLocalhost) {
-          console.warn("NVIDIA direct fetch failed (CORS?), trying proxy...");
-          url = `${CORS_ANYWHERE}https://integrate.api.nvidia.com/v1/chat/completions`;
-          attempt--;
-          continue;
-        }
-      }
-      throw e;
+      response = null;
+      lastError = e;
     }
 
-    const isRateLimit = response.status === 429;
-    const isTransient = response.status >= 500;
-    const shouldRetry = (isRateLimit || isTransient) && attempt < maxAttempts - 1;
+    const isRateLimit = response && response.status === 429;
+    const isTransient = !response || (response && response.status >= 500);
+    const isProxyUrl = url.startsWith(PRIMARY_PROXY) || url.startsWith(BACKUP_PROXY) || (provider === 'nvidia' && url === NVIDIA_API_URL && !isLocalhost);
+    
+    // We retry on rate limits, transient errors (like 502/504), network errors (!response), 
+    // or if we are using a proxy and get a non-400/401 error (could be a proxy malfunction).
+    const isClientApiError = response && (response.status === 400 || response.status === 401);
+    const shouldRetry = (isRateLimit || isTransient || (isProxyUrl && !isClientApiError)) && attempt < maxAttempts - 1;
+
     if (shouldRetry) {
-      await sleep(getRetryDelayMs(response, attempt));
+      if (url.startsWith(PRIMARY_PROXY)) {
+        console.warn(`Attempt ${attempt + 1} failed on PRIMARY_PROXY. Switching to BACKUP_PROXY...`);
+        const targetUrl = url.replace(PRIMARY_PROXY, "");
+        url = `${BACKUP_PROXY}${encodeURIComponent(decodeURIComponent(targetUrl))}`;
+      } else if (url.startsWith(BACKUP_PROXY)) {
+        console.warn(`Attempt ${attempt + 1} failed on BACKUP_PROXY. Switching to PRIMARY_PROXY...`);
+        const targetUrl = url.replace(BACKUP_PROXY, "");
+        url = `${PRIMARY_PROXY}${encodeURIComponent(decodeURIComponent(targetUrl))}`;
+      } else if (provider === 'nvidia' && url === NVIDIA_API_URL && !isLocalhost) {
+        console.warn(`Attempt ${attempt + 1} failed on NVIDIA direct. Switching to BACKUP_PROXY...`);
+        url = `${BACKUP_PROXY}${encodeURIComponent("https://integrate.api.nvidia.com/v1/chat/completions")}`;
+      }
+
+      const delayMs = response ? getRetryDelayMs(response, attempt) : Math.min(500 * Math.pow(2, attempt), 4000);
+      await sleep(delayMs);
+      
+      if (signal?.aborted) {
+        const abortError = new Error('Request aborted');
+        abortError.name = 'AbortError';
+        throw abortError;
+      }
       continue;
+    }
+
+    if (!response && lastError) {
+      throw lastError;
     }
     break;
   }
 
   if (!response || !response.ok) {
-    if (url.startsWith(CORS_ANYWHERE) && response && response.status === 403) {
-      throw new Error(`CORS Proxy requires activation. Please visit https://cors-anywhere.herokuapp.com/corsdemo to temporarily unlock access, then try again.`);
+    if (url.startsWith(PRIMARY_PROXY) && response && response.status === 403) {
+      throw new Error(`Proxy error. Please try again later or check proxy status.`);
     }
 
     let errorMessage = `API Error: ${response ? response.status : 'unknown'}`;
@@ -571,7 +591,7 @@ export const fetchModels = async (provider, apiKeys = {}) => {
             let base = current.baseUrl.endsWith('/') ? current.baseUrl.slice(0, -1) : current.baseUrl;
             
             if (current.useProxy) {
-              url = `${CORS_ANYWHERE}${base}/models`;
+              url = `${PRIMARY_PROXY}${base}/models`;
             } else {
               url = `${base}/models`;
             }
@@ -591,41 +611,49 @@ export const fetchModels = async (provider, apiKeys = {}) => {
     }
 
     const fetchWithFallback = async (url, headers) => {
-      try {
+      const tryFetch = async (fetchUrl, method = "GET") => {
         const fetchHeaders = { ...headers };
-        if (url.startsWith(CORS_ANYWHERE)) {
-          fetchHeaders["X-Requested-With"] = "XMLHttpRequest";
+        let options = { method, headers: fetchHeaders };
+        if (method === "POST") {
+           // Provide an empty body for POST to models endpoint if necessary, 
+           // but some endpoints might just need the method change.
+           // Usually /v1/models doesn't need a body, but fetch requires one if not GET/HEAD? Actually POST can have no body.
         }
-        
-        const res = await fetch(url, { headers: fetchHeaders });
+        return await fetch(fetchUrl, options);
+      };
+
+      try {
+        let res = await tryFetch(url, "GET");
+        if (!res.ok) {
+          console.warn(`GET ${url} failed with ${res.status}, trying POST...`);
+          res = await tryFetch(url, "POST");
+        }
         if (res.ok) return res;
         throw new Error(`Fetch failed: ${res.status}`);
       } catch (e) {
         // Fallback for NVIDIA direct
         if (url === MODEL_URLS.nvidia && !isLocalhost) {
-          console.warn("NVIDIA models fetch failed, trying ALLORIGINS_PROXY fallback...");
-          const fallbackUrl = `${ALLORIGINS_PROXY}${encodeURIComponent("https://integrate.api.nvidia.com/v1/models")}`;
-          const fallbackRes = await fetch(fallbackUrl);
+          console.warn("NVIDIA models fetch failed, trying BACKUP_PROXY fallback...");
+          const fallbackUrl = `${BACKUP_PROXY}${encodeURIComponent("https://integrate.api.nvidia.com/v1/models")}`;
+          let fallbackRes = await tryFetch(fallbackUrl, "GET");
+          if (!fallbackRes.ok) {
+            fallbackRes = await tryFetch(fallbackUrl, "POST");
+          }
           if (fallbackRes.ok) {
-            const data = await fallbackRes.json();
-            return new Response(data.contents, {
-              status: data.status?.http_code || 200,
-              headers: { 'Content-Type': 'application/json' }
-            });
+            return fallbackRes;
           }
         }
         // General proxy fallback for custom providers
-        if (url.startsWith(CORS_ANYWHERE)) {
-          console.warn("CORS_ANYWHERE failed in fetchModels, trying ALLORIGINS_PROXY...");
-          const targetUrl = url.replace(CORS_ANYWHERE, "");
-          const fallbackUrl = `${ALLORIGINS_PROXY}${encodeURIComponent(targetUrl)}`;
-          const fallbackRes = await fetch(fallbackUrl);
+        if (url.startsWith(PRIMARY_PROXY)) {
+          console.warn("PRIMARY_PROXY failed in fetchModels, trying BACKUP_PROXY...");
+          const targetUrl = url.replace(PRIMARY_PROXY, "");
+          const fallbackUrl = `${BACKUP_PROXY}${encodeURIComponent(targetUrl)}`;
+          let fallbackRes = await tryFetch(fallbackUrl, "GET");
+          if (!fallbackRes.ok) {
+             fallbackRes = await tryFetch(fallbackUrl, "POST");
+          }
           if (fallbackRes.ok) {
-            const data = await fallbackRes.json();
-            return new Response(data.contents, {
-              status: data.status?.http_code || 200,
-              headers: { 'Content-Type': 'application/json' }
-            });
+            return fallbackRes;
           }
         }
         throw e;

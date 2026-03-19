@@ -6,7 +6,7 @@ export default {
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          "Access-Control-Allow-Headers": "*",
         }
       });
     }
@@ -16,15 +16,35 @@ export default {
       return new Response("Method not allowed", { status: 405 });
     }
 
-    // Extract the path from the incoming request (e.g., /v1/models or /v1/chat/completions)
     const url = new URL(request.url);
-    const targetUrl = "https://integrate.api.nvidia.com" + url.pathname + url.search;
     
-    // Create a new request object to send to NVIDIA, copying the body and headers
+    // Determine the target URL
+    let targetUrl = url.searchParams.get('url');
+    
+    // If no ?url= provided, try to extract from path
+    if (!targetUrl) {
+      const pathUrl = url.pathname.slice(1) + url.search; // remove leading slash
+      if (pathUrl.startsWith('http')) {
+        targetUrl = pathUrl;
+      } else if (url.pathname.startsWith('/v1/')) {
+        // Fallback for existing NVIDIA direct paths
+        targetUrl = "https://integrate.api.nvidia.com" + url.pathname + url.search;
+      }
+    }
+
+    if (!targetUrl) {
+      return new Response("Missing target URL. Use ?url=... or /https://...", { status: 400 });
+    }
+    
+    // Create a new request object to send to the target, copying the body and headers
     const newRequest = new Request(targetUrl, request);
 
+    // Remove headers that might cause issues with some APIs
+    newRequest.headers.delete("Origin");
+    newRequest.headers.delete("Referer");
+
     try {
-      // Fetch the data from NVIDIA
+      // Fetch the data from the target
       let response = await fetch(newRequest);
 
       // Reconstruct the response so we can modify the headers

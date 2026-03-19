@@ -2371,6 +2371,7 @@ function App() {
 
         const itemTitle = item.title;
         setGeneratingRecItems(prev => [...prev, itemTitle]);
+        setIsLoading(true);
 
         const controller = new AbortController();
         abortControllerRef.current = controller;
@@ -2468,6 +2469,7 @@ function App() {
             }
         } finally {
             setGeneratingRecItems(prev => prev.filter(t => t !== itemTitle));
+            setIsLoading(false);
             abortControllerRef.current = null;
         }
     };

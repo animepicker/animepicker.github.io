@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     LogOut, User, LayoutGrid, Sparkles, ArrowUp, ArrowDown, Plus, X,
