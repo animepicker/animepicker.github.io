@@ -18,6 +18,9 @@ const DEFAULT_CEREBRAS_MODEL = "gpt-oss-120b";
 const DEFAULT_MISTRAL_MODEL = "mistral-large-latest";
 const DEFAULT_NVIDIA_MODEL = "meta/llama-3.3-70b-instruct";
 
+// Module-level model cache to avoid re-fetching
+let modelsCache = {};
+
 export const MODEL_URLS = {
   openrouter: "https://openrouter.ai/api/v1/models",
   groq: "https://api.groq.com/openai/v1/models",
@@ -121,13 +124,32 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
     try {
       const fetchHeaders = { ...headers };
 
+      // Determine max_tokens
+      const storedMaxTokens = localStorage.getItem('ai_max_tokens');
+      let maxTokensValue = 8192; // Default for most providers
+
+      if (storedMaxTokens) {
+        maxTokensValue = parseInt(storedMaxTokens);
+      } else if (provider === 'nvidia') {
+        // For NVIDIA, try to use the model's actual max context if we have it in cache
+        const providerModels = modelsCache['nvidia'] || [];
+        const modelData = providerModels.find(m => m.id === model);
+        if (modelData) {
+          // Use maxCompletionTokens if defined, else contextLength (total window)
+          maxTokensValue = modelData.maxCompletionTokens || modelData.contextLength || 131072;
+        } else {
+          // Fallback high value for NVIDIA NIM if models haven't been fetched yet
+          maxTokensValue = 131072;
+        }
+      }
+
       response = await fetch(url, {
         method: "POST",
         headers: fetchHeaders,
         signal: signal,
         body: JSON.stringify({
           model: model,
-          max_tokens: provider === 'nvidia' ? 4096 : (parseInt(localStorage.getItem('ai_max_tokens')) || 8192),
+          max_tokens: maxTokensValue,
           messages: [
             {
               role: "user",
@@ -710,6 +732,9 @@ export const fetchModels = async (provider, apiKeys = {}) => {
     const uniqueModels = Array.from(
       new Map(mappedModels.map(model => [model.id, model])).values()
     ).sort((a, b) => a.name.localeCompare(b.name));
+
+    // Store in module cache for callAI use
+    modelsCache[provider] = uniqueModels;
 
     return uniqueModels;
   } catch (error) {
