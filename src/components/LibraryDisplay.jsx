@@ -111,9 +111,9 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
                     </h3>
                 </div>
 
-                {isLoading || isGeneratingRec ? (
+                {isLoading ? (
                     <div className="flex items-center gap-2 text-violet-400 text-xs py-1">
-                        <span>{isGeneratingRec ? 'Generating rec...' : 'Generating info...'}</span>
+                        <span>Generating info...</span>
                     </div>
                 ) : hasInfo ? (
                     <>

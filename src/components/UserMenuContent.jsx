@@ -213,6 +213,7 @@ export default function UserMenuContent({
         else if (aiProvider === 'cerebras') localStorage.setItem('cerebras_model', modelId);
         else if (aiProvider === 'mistral') localStorage.setItem('mistral_model', modelId);
         else if (aiProvider === 'openrouter') localStorage.setItem('openrouter_model', modelId);
+        else if (aiProvider === 'nvidia') localStorage.setItem('nvidia_model', modelId);
         else {
             // Update custom provider model
             const newCustoms = customProviders.map(p =>

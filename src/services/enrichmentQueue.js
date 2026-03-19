@@ -204,6 +204,14 @@ export const processQueue = async () => {
                         console.log(`AI enrichment completed for: ${job.title}`);
                         continue;
                     }
+                } else {
+                    // No API key, we can't do AI fallback. Just accept what we got from Jikan and finish.
+                    console.log(`[Enrichment] No API key for AI fallback for ${job.title}, finishing job.`);
+                    // We call mergeEnrichmentData with empty data to ensure demographicsChecked is set to true
+                    await mergeEnrichmentData(job, {});
+                    updateJobStatus(job.id, { status: 'completed' });
+                    removeJob(job.id);
+                    continue;
                 }
 
                 // No data found, increment attempts
@@ -220,8 +228,12 @@ export const processQueue = async () => {
                         status: 'failed',
                         attempts: newAttempts
                     });
+                    
+                    // Call mergeEnrichmentData with empty data just to set demographicsChecked: true
+                    await mergeEnrichmentData(job, {});
+                    
                     removeJob(job.id);
-                    console.log(`Enrichment permanently failed for: ${job.title}`);
+                    console.log(`Enrichment permanently failed for: ${job.title}, marked as checked.`);
                 } else {
                     // Schedule retry
                     updateJobStatus(job.id, {
@@ -307,13 +319,24 @@ const mergeEnrichmentData = async (job, enrichmentData) => {
                     // Merge semantics: never overwrite existing non-empty genres with empty result
                     const existingGenres = item.genres || [];
                     const newGenres = enrichmentData.genres || [];
+                    const newDemographics = enrichmentData.demographics || [];
 
                     // Only add new genres that don't exist
                     const mergedGenres = [...existingGenres];
+                    
+                    // Add new genres
                     newGenres.forEach(g => {
                         if (!mergedGenres.some(existing =>
                             existing.toLowerCase() === g.toLowerCase())) {
                             mergedGenres.push(g);
+                        }
+                    });
+                    
+                    // Add new demographics to genres to ensure they show up as tags in the UI
+                    newDemographics.forEach(d => {
+                        if (!mergedGenres.some(existing =>
+                            existing.toLowerCase() === d.toLowerCase())) {
+                            mergedGenres.push(d);
                         }
                     });
 
@@ -321,7 +344,8 @@ const mergeEnrichmentData = async (job, enrichmentData) => {
                         ...item,
                         mal_id: enrichmentData.mal_id || item.mal_id,
                         genres: mergedGenres.length > 0 ? mergedGenres : item.genres,
-                        demographics: (enrichmentData.demographics && enrichmentData.demographics.length > 0) ? enrichmentData.demographics : item.demographics
+                        demographics: (enrichmentData.demographics && enrichmentData.demographics.length > 0) ? enrichmentData.demographics : item.demographics,
+                        demographicsChecked: true
                     };
                 }
                 return item;
@@ -380,5 +404,37 @@ export const clearQueue = () => {
 // Initialize queue processing on app load
 export const initializeEnrichmentQueue = () => {
     console.log('Initializing enrichment queue...');
+    
+    // Reset any jobs that were stuck in 'processing' state due to a page reload/crash
+    // Also reset nextAttemptAt to now so pending jobs process immediately on load
+    const queue = getQueue();
+    let changed = false;
+    const now = Date.now();
+    const resetQueue = queue.map(job => {
+        let updated = false;
+        let newJob = { ...job };
+        
+        if (newJob.status === 'processing') {
+            newJob.status = 'pending';
+            updated = true;
+        }
+        
+        if (newJob.status === 'pending' && newJob.nextAttemptAt > now) {
+            newJob.nextAttemptAt = now;
+            updated = true;
+        }
+        
+        if (updated) {
+            changed = true;
+            return newJob;
+        }
+        return job;
+    });
+    
+    if (changed) {
+        saveQueue(resetQueue);
+        console.log('Reset stuck/delayed jobs to process immediately');
+    }
+    
     processQueue();
 };

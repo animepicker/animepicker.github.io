@@ -69,19 +69,19 @@ function App() {
         const provider = localStorage.getItem('ai_provider') || 'openrouter';
         if (provider === 'groq') {
             const saved = localStorage.getItem('groq_model');
-            return (saved && !saved.includes('/')) ? saved : 'llama-3.3-70b-versatile';
+            return saved ? saved : 'llama-3.3-70b-versatile';
         }
         if (provider === 'cerebras') {
             const saved = localStorage.getItem('cerebras_model');
-            return (saved && !saved.includes('/')) ? saved : 'gpt-oss-120b';
+            return saved ? saved : 'gpt-oss-120b';
         }
         if (provider === 'mistral') {
             const saved = localStorage.getItem('mistral_model');
-            return (saved && !saved.includes('/')) ? saved : 'mistral-large-latest';
+            return saved ? saved : 'mistral-large-latest';
         }
         if (provider === 'nvidia') {
             const saved = localStorage.getItem('nvidia_model');
-            return (saved && !saved.includes('/')) ? saved : 'meta/llama-3.3-70b-instruct';
+            return saved ? saved : 'meta/llama-3.3-70b-instruct';
         }
         
         // Handle custom providers
@@ -579,11 +579,12 @@ function App() {
             // Check library
             library.forEach(item => {
                 const genres = item.genres || [];
+                const demographics = item.demographics || [];
                 const hasDemographic = genres.some(g =>
                     DEMOGRAPHICS.some(d => d.toLowerCase() === g.toLowerCase())
-                );
+                ) || demographics.length > 0;
 
-                if (!hasDemographic) {
+                if (!hasDemographic && !item.demographicsChecked) {
                     enqueueEnrichmentJob({ ...item, listType: 'library' });
                 }
             });
@@ -591,11 +592,12 @@ function App() {
             // Check watchlist
             watchlist.forEach(item => {
                 const genres = item.genres || [];
+                const demographics = item.demographics || [];
                 const hasDemographic = genres.some(g =>
                     DEMOGRAPHICS.some(d => d.toLowerCase() === g.toLowerCase())
-                );
+                ) || demographics.length > 0;
 
-                if (!hasDemographic) {
+                if (!hasDemographic && !item.demographicsChecked) {
                     enqueueEnrichmentJob({ ...item, listType: 'watchlist' });
                 }
             });
@@ -2751,7 +2753,7 @@ function App() {
             if (custom) key = custom.apiKey;
         }
 
-        if (providerToRefresh !== 'openrouter' && !key) {
+        if (providerToRefresh !== 'openrouter' && !providerToRefresh.startsWith('custom-') && !key) {
             return;
         }
 
@@ -2768,7 +2770,13 @@ function App() {
                 setAllProvidersModels(prev => ({ ...prev, [providerToRefresh]: models }));
             }
         } catch (error) {
-            console.error(`Failed to refresh models for ${providerToRefresh}:`, error);
+            let providerName = providerToRefresh;
+            if (providerToRefresh.startsWith('custom-')) {
+                const customs = JSON.parse(localStorage.getItem('custom_providers') || '[]');
+                const custom = customs.find(p => p.id === providerToRefresh);
+                if (custom) providerName = custom.name || providerToRefresh;
+            }
+            console.error(`Failed to refresh models for provider ${providerName}:`, error);
         } finally {
             setIsLoadingModels(prev => ({ ...prev, [providerToRefresh]: false }));
         }
@@ -2849,6 +2857,26 @@ function App() {
                                 setAiProvider={(p) => {
                                     setAiProvider(p);
                                     localStorage.setItem('ai_provider', p);
+                                    
+                                    // Also update selectedModel to match the new provider
+                                    let newModel = '';
+                                    if (p === 'groq') {
+                                        newModel = localStorage.getItem('groq_model') || 'llama-3.3-70b-versatile';
+                                    } else if (p === 'cerebras') {
+                                        newModel = localStorage.getItem('cerebras_model') || 'gpt-oss-120b';
+                                    } else if (p === 'mistral') {
+                                        newModel = localStorage.getItem('mistral_model') || 'mistral-large-latest';
+                                    } else if (p === 'nvidia') {
+                                        newModel = localStorage.getItem('nvidia_model') || 'meta/llama-3.3-70b-instruct';
+                                    } else if (p === 'openrouter') {
+                                        newModel = localStorage.getItem('openrouter_model') || 'tngtech/deepseek-r1t2-chimera:free';
+                                    } else {
+                                        // Custom providers
+                                        const customs = JSON.parse(localStorage.getItem('custom_providers') || '[]');
+                                        const current = customs.find(c => c.id === p);
+                                        if (current && current.model) newModel = current.model;
+                                    }
+                                    if (newModel) setSelectedModel(newModel);
                                 }}
                                 apiKey={apiKey}
                                 setApiKey={setApiKey}
