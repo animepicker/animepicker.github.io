@@ -1,6 +1,36 @@
 // Demographics to prioritize
 export const DEMOGRAPHICS = ['Shounen', 'Shonen', 'Seinen', 'Shoujo', 'Shojo', 'Josei', 'Kids', 'Kodomomuke'];
 
+// Map of lowercase demographic to canonical form for normalization
+const DEMOGRAPHIC_NORMALIZATION = {
+    'shounen': 'Shounen',
+    'shonen': 'Shounen',
+    'seinen': 'Seinen',
+    'shoujo': 'Shoujo',
+    'shojo': 'Shoujo',
+    'josei': 'Josei',
+    'kids': 'Kids',
+    'kodomomuke': 'Kodomomuke'
+};
+
+/**
+ * Validates and filters demographic values against the standard MyAnimeList demographic list.
+ * Returns only valid demographics, normalized to canonical form.
+ * @param {string[]} demographics - Array of demographic strings to validate
+ * @returns {string[]} - Filtered array of valid, normalized demographics
+ */
+export const validateDemographics = (demographics) => {
+    if (!demographics || !Array.isArray(demographics)) return [];
+
+    return demographics
+        .filter(d => d && typeof d === 'string')
+        .map(d => {
+            const normalized = DEMOGRAPHIC_NORMALIZATION[d.toLowerCase()];
+            return normalized || null;
+        })
+        .filter(d => d !== null);
+};
+
 /**
  * Formats tags by prioritizing demographics and limiting the visible count.
  * @param {string[]} tags - Array of tag strings

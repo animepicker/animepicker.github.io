@@ -42,7 +42,7 @@ import {
     getUserProfile
 } from './services/googleDriveService';
 
-import { DEMOGRAPHICS } from './utils/tagUtils';
+import { DEMOGRAPHICS, validateDemographics } from './utils/tagUtils';
 
 const getSafeTitle = (item) => {
     if (!item) return '';
@@ -83,7 +83,7 @@ function App() {
             const saved = localStorage.getItem('nvidia_model');
             return saved ? saved : 'meta/llama-3.3-70b-instruct';
         }
-        
+
         // Handle custom providers
         const customProvidersRaw = localStorage.getItem('custom_providers');
         if (customProvidersRaw) {
@@ -324,7 +324,7 @@ function App() {
         if (aiProvider === 'cerebras') return cerebrasApiKey;
         if (aiProvider === 'mistral') return mistralApiKey;
         if (aiProvider === 'nvidia') return nvidiaApiKey;
-        
+
         // Check custom providers
         const custom = customProviders.find(p => p.id === aiProvider);
         if (custom) return custom.apiKey;
@@ -1244,9 +1244,15 @@ function App() {
             generateInfoForItem(title, newItem.id);
         }
 
-        // Enqueue background enrichment job
+        // Enqueue background enrichment job (skip if item already has valid demographics)
         if (typeof titleOrAnime === 'object' && titleOrAnime) {
-            enqueueEnrichmentJob({ ...titleOrAnime, title, listType: 'library' });
+            const validDemographics = validateDemographics(titleOrAnime.demographics);
+            if (validDemographics.length > 0) {
+                // Item has valid demographics from AI - skip enrichment, mark as checked
+                newItem.demographicsChecked = true;
+            } else {
+                enqueueEnrichmentJob({ ...titleOrAnime, title, listType: 'library' });
+            }
         } else if (typeof titleOrAnime === 'string') {
             enqueueEnrichmentJob({ title, listType: 'library' });
         }
@@ -1320,12 +1326,14 @@ function App() {
 
             if (mode === 'genres') {
                 // Partial update: preserve all existing metadata, only update genres/demographics
+                // Validate demographics before storing
+                const validatedDemographics = validateDemographics(data.demographics || []);
                 newItem = {
                     ...(isObject ? originalTitle : {}), // Preserve ALL existing properties
                     id: (itemId || (isObject ? originalTitle.id : null) || Date.now()).toString(),
                     title: data.title || title,
                     genres: data.genres || (isObject ? originalTitle.genres : []),
-                    demographics: data.demographics || (isObject ? originalTitle.demographics : []),
+                    demographics: validatedDemographics.length > 0 ? validatedDemographics : (isObject ? originalTitle.demographics : []),
                     // Preserve all other fields from originalTitle
                     description: isObject ? originalTitle.description : (data.description || ''),
                     year: isObject ? originalTitle.year : data.year,
@@ -1334,12 +1342,14 @@ function App() {
                 };
             } else {
                 // Full update (default 'all' mode)
+                // Validate demographics before storing
+                const validatedDemographics = validateDemographics(data.demographics || []);
                 newItem = {
                     ...(isObject ? originalTitle : {}), // Preserve ALL existing properties (notes, reasons, IDs, etc.)
                     id: (itemId || (isObject ? originalTitle.id : null) || Date.now()).toString(),
                     title: data.title || title,
                     genres: data.genres || [],
-                    demographics: data.demographics || [],
+                    demographics: validatedDemographics,
                     description: data.description || '',
                     year: data.year,
                     bannerImage: data.bannerImage || (isObject ? originalTitle.bannerImage : null),
@@ -2023,9 +2033,15 @@ function App() {
             generateInfoForItem(title, newItem.id, 'watchlist');
         }
 
-        // Enqueue background enrichment job
+        // Enqueue background enrichment job (skip if item already has valid demographics)
         if (typeof item === 'object' && item) {
-            enqueueEnrichmentJob({ ...item, title, listType: 'watchlist' });
+            const validDemographics = validateDemographics(item.demographics);
+            if (validDemographics.length > 0) {
+                // Item has valid demographics from AI - skip enrichment, mark as checked
+                newItem.demographicsChecked = true;
+            } else {
+                enqueueEnrichmentJob({ ...item, title, listType: 'watchlist' });
+            }
         } else if (typeof item === 'string') {
             enqueueEnrichmentJob({ title, listType: 'watchlist' });
         }
@@ -2311,8 +2327,10 @@ function App() {
                                 if (p.id === item.id) {
                                     const jikanDemos = details.demographics?.map(d => d.name) || [];
                                     const jikanTags = details.genres?.map(g => g.name) || [];
-                                    
-                                    const finalDemos = jikanDemos.length > 0 ? jikanDemos : (p.demographics || []);
+
+                                    // Validate demographics from Jikan
+                                    const validatedJikanDemos = validateDemographics(jikanDemos);
+                                    const finalDemos = validatedJikanDemos.length > 0 ? validatedJikanDemos : validateDemographics(p.demographics || []);
                                     const mergedTags = [...finalDemos, ...jikanTags];
 
                                     return {
@@ -2320,7 +2338,7 @@ function App() {
                                         description: details.synopsis || p.description,
                                         year: details.year || p.year,
                                         genres: mergedTags.length > 0 ? mergedTags : p.genres,
-                                        demographics: finalDemos.length > 0 ? finalDemos : p.demographics,
+                                        demographics: finalDemos,
                                         coverImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.coverImage,
                                         bannerImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.bannerImage,
                                         mal_id: details.mal_id
@@ -2438,8 +2456,10 @@ function App() {
                                     if (p.id === rec.id) {
                                         const jikanDemos = details.demographics?.map(d => d.name) || [];
                                         const jikanTags = details.genres?.map(g => g.name) || [];
-                                        
-                                        const finalDemos = jikanDemos.length > 0 ? jikanDemos : (p.demographics || []);
+
+                                        // Validate demographics from Jikan
+                                        const validatedJikanDemos = validateDemographics(jikanDemos);
+                                        const finalDemos = validatedJikanDemos.length > 0 ? validatedJikanDemos : validateDemographics(p.demographics || []);
                                         const mergedTags = [...finalDemos, ...jikanTags];
 
                                         return {
@@ -2447,7 +2467,7 @@ function App() {
                                             description: details.synopsis || p.description,
                                             year: details.year || p.year,
                                             genres: mergedTags.length > 0 ? mergedTags : p.genres,
-                                            demographics: finalDemos.length > 0 ? finalDemos : p.demographics,
+                                            demographics: finalDemos,
                                             coverImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.coverImage,
                                             bannerImage: details.images?.jpg?.large_image_url || details.images?.jpg?.image_url || p.bannerImage,
                                             mal_id: details.mal_id
@@ -2745,7 +2765,7 @@ function App() {
     const handleRefreshModels = async (providerToRefresh) => {
         // Safe check for keys before fetching (except OpenRouter which is often free)
         let key = localStorage.getItem(`${providerToRefresh}_api_key`);
-        
+
         // If not found in standard keys, check custom providers
         if (!key) {
             const customs = JSON.parse(localStorage.getItem('custom_providers') || '[]');
@@ -2857,7 +2877,7 @@ function App() {
                                 setAiProvider={(p) => {
                                     setAiProvider(p);
                                     localStorage.setItem('ai_provider', p);
-                                    
+
                                     // Also update selectedModel to match the new provider
                                     let newModel = '';
                                     if (p === 'groq') {

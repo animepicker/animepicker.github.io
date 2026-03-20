@@ -1,6 +1,8 @@
 // Service for persistent tag enrichment queue
 // Handles background enrichment of anime items with demographics/genres from Jikan API
 
+import { validateDemographics } from '../utils/tagUtils';
+
 const ENRICHMENT_QUEUE_KEY = 'anime_enrichment_queue';
 const MAX_JOB_ATTEMPTS = 3;
 const JOB_RETRY_DELAY = 60000; // 1 minute between retries
@@ -228,10 +230,10 @@ export const processQueue = async () => {
                         status: 'failed',
                         attempts: newAttempts
                     });
-                    
+
                     // Call mergeEnrichmentData with empty data just to set demographicsChecked: true
                     await mergeEnrichmentData(job, {});
-                    
+
                     removeJob(job.id);
                     console.log(`Enrichment permanently failed for: ${job.title}, marked as checked.`);
                 } else {
@@ -319,11 +321,12 @@ const mergeEnrichmentData = async (job, enrichmentData) => {
                     // Merge semantics: never overwrite existing non-empty genres with empty result
                     const existingGenres = item.genres || [];
                     const newGenres = enrichmentData.genres || [];
-                    const newDemographics = enrichmentData.demographics || [];
+                    // Validate demographics before storing - filter out invalid values like "Light Novel"
+                    const validatedDemographics = validateDemographics(enrichmentData.demographics || []);
 
                     // Only add new genres that don't exist
                     const mergedGenres = [...existingGenres];
-                    
+
                     // Add new genres
                     newGenres.forEach(g => {
                         if (!mergedGenres.some(existing =>
@@ -331,21 +334,24 @@ const mergeEnrichmentData = async (job, enrichmentData) => {
                             mergedGenres.push(g);
                         }
                     });
-                    
+
                     // Add new demographics to genres to ensure they show up as tags in the UI
-                    newDemographics.forEach(d => {
+                    validatedDemographics.forEach(d => {
                         if (!mergedGenres.some(existing =>
                             existing.toLowerCase() === d.toLowerCase())) {
                             mergedGenres.push(d);
                         }
                     });
 
+                    // Only set demographicsChecked: true if we have valid demographics
+                    const hasValidDemographics = validatedDemographics.length > 0;
+
                     return {
                         ...item,
                         mal_id: enrichmentData.mal_id || item.mal_id,
                         genres: mergedGenres.length > 0 ? mergedGenres : item.genres,
-                        demographics: (enrichmentData.demographics && enrichmentData.demographics.length > 0) ? enrichmentData.demographics : item.demographics,
-                        demographicsChecked: true
+                        demographics: hasValidDemographics ? validatedDemographics : item.demographics,
+                        demographicsChecked: hasValidDemographics
                     };
                 }
                 return item;
@@ -404,7 +410,7 @@ export const clearQueue = () => {
 // Initialize queue processing on app load
 export const initializeEnrichmentQueue = () => {
     console.log('Initializing enrichment queue...');
-    
+
     // Reset any jobs that were stuck in 'processing' state due to a page reload/crash
     // Also reset nextAttemptAt to now so pending jobs process immediately on load
     const queue = getQueue();
@@ -413,28 +419,28 @@ export const initializeEnrichmentQueue = () => {
     const resetQueue = queue.map(job => {
         let updated = false;
         let newJob = { ...job };
-        
+
         if (newJob.status === 'processing') {
             newJob.status = 'pending';
             updated = true;
         }
-        
+
         if (newJob.status === 'pending' && newJob.nextAttemptAt > now) {
             newJob.nextAttemptAt = now;
             updated = true;
         }
-        
+
         if (updated) {
             changed = true;
             return newJob;
         }
         return job;
     });
-    
+
     if (changed) {
         saveQueue(resetQueue);
         console.log('Reset stuck/delayed jobs to process immediately');
     }
-    
+
     processQueue();
 };
