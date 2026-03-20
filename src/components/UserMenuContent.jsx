@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     LogOut, User, LayoutGrid, Sparkles, ArrowUp, ArrowDown, Plus, X,
     Play, Search, Info, Key, Download, Upload, RefreshCw, Heart, Trash2,
-    ChevronLeft, Check, Copy, ExternalLink, Loader2, Eye, EyeOff, ChevronDown, ChevronRight, Undo, Zap, Wind, Cloud, CloudOff, Database, Calendar, Terminal, Tag
+    ChevronLeft, Check, Copy, ExternalLink, Loader2, Eye, EyeOff, ChevronDown, ChevronRight, Undo, Zap, Wind, Cloud, CloudOff, Database, Calendar, Terminal, Tag, Pencil
 } from 'lucide-react';
 import AboutContent from './AboutContent';
 import { fetchModels as fetchModelsApi } from '../services/aiService';
@@ -836,9 +836,10 @@ export default function UserMenuContent({
                                                                 setEditingProvider(provider);
                                                                 setCurrentView('api_custom_edit');
                                                             }}
-                                                            className="p-2 text-gray-500 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                                                            className="p-2 text-violet-400/70 hover:text-violet-400 hover:bg-violet-400/10 rounded-lg transition-all"
+                                                            title="Edit Provider"
                                                         >
-                                                            <Info size={16} />
+                                                            <Pencil size={16} />
                                                         </button>
                                                         {aiProvider === provider.id && <Check size={16} className="text-violet-400" />}
                                                     </div>
