@@ -126,19 +126,20 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
 
       // Determine max_tokens
       const storedMaxTokens = localStorage.getItem('ai_max_tokens');
-      let maxTokensValue = 8192; // Default for most providers
+      let maxTokensValue = 8192; // Global fallback
 
       if (storedMaxTokens) {
         maxTokensValue = parseInt(storedMaxTokens);
-      } else if (provider === 'nvidia') {
-        // For NVIDIA, try to use the model's actual max context if we have it in cache
-        const providerModels = modelsCache['nvidia'] || [];
+      } else {
+        // Try to use the model's actual max context if we have it in cache
+        const providerModels = modelsCache[provider] || [];
         const modelData = providerModels.find(m => m.id === model);
+        
         if (modelData) {
-          // Use maxCompletionTokens if defined, else contextLength (total window)
-          maxTokensValue = modelData.maxCompletionTokens || modelData.contextLength || 131072;
-        } else {
-          // Fallback high value for NVIDIA NIM if models haven't been fetched yet
+          // Priority: maxCompletionTokens > contextLength
+          maxTokensValue = modelData.maxCompletionTokens || modelData.contextLength || 8192;
+        } else if (provider === 'nvidia') {
+          // High fallback specifically for NVIDIA NIM if models haven't been fetched yet
           maxTokensValue = 131072;
         }
       }

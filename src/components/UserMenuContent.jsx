@@ -195,13 +195,17 @@ export default function UserMenuContent({
             // Ensure default doesn't exceed slider max
             const sliderMax = getModelMaxOutputTokens();
 
-            // Set default to maximum available
-            defaultTokens = sliderMax;
+            // Use model's max for NVIDIA by default, or 8192 for others (capped by slider max)
+            if (aiProvider === 'nvidia') {
+                defaultTokens = sliderMax;
+            } else {
+                defaultTokens = Math.min(8192, sliderMax);
+            }
 
             setMaxTokens(defaultTokens);
             localStorage.setItem('ai_max_tokens', defaultTokens);
         }
-    }, [selectedModel, models]);
+    }, [selectedModel, models, aiProvider]);
 
     // We no longer fetch models locally, App.jsx handles it.
     // However, we can trigger a refresh if the user updates an API key. 
