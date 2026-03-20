@@ -392,14 +392,14 @@ export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGe
                     </button>
                 </div>
             ) : (
-                <div className="w-full max-w-6xl mx-auto mt-8 mb-8 px-4">
+                <div className="w-full max-w-6xl mx-auto mt-12 mb-20 px-4">
                     {/* Header Area */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                         <h2 className="text-2xl font-bold text-white tracking-tight">
                             Your Library
                         </h2>
                         {/* Search Bar with Sort */}
-                        <div className="flex gap-2 w-full sm:max-w-md">
+                        <div className="flex items-center gap-2 w-full sm:max-w-md">
                             <div className="relative flex-1">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
                                     <Search size={16} />

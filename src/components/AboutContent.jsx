@@ -18,7 +18,7 @@ export default function AboutContent() {
                     <span className="text-[10px] text-violet-400 font-black tracking-widest uppercase">GOOGLE ANTIGRAVITY</span>
                 </div>
                 <div className="text-[9px] text-gray-600 font-mono tracking-tighter">
-                    v2026.03.20.1423
+                    v2026.03.20.1439
                 </div>
             </div>
         </div>
