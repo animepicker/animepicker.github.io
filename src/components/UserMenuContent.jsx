@@ -79,16 +79,16 @@ export default function UserMenuContent({
     customProviders = [],
     setCustomProviders = () => { }
 }) {
-    const [currentView, setCurrentView] = useState(initialView); // 'main', 'about', 'api', 'api_providers', 'api_custom_edit', 'instructions', 'regen', 'regen_options', 'excluded', 'effects', 'cloud', 'destruction', 'data_backup', 'console'
+    const [currentView, setCurrentView] = useState(initialView); // 'main', 'about', 'api', 'api_providers', 'api_models', 'api_custom_edit', 'instructions', 'regen', 'regen_options', 'excluded', 'effects', 'cloud', 'destruction', 'data_backup', 'console'
     const [regenTarget, setRegenTarget] = useState('watchlist'); // 'watchlist' or 'library'
     const [regenMode, setRegenMode] = useState('missing'); // 'all' or 'missing'
 
     // API Settings State
     const [isApiKeyVisible, setIsApiKeyVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [isModelListOpen, setIsModelListOpen] = useState(false);
     const [maxTokens, setMaxTokens] = useState(parseInt(localStorage.getItem('ai_max_tokens')) || 73728);
     const [editingProvider, setEditingProvider] = useState(null); // Provider object for Add/Edit view
+    const [apiModelsAnimationDone, setApiModelsAnimationDone] = useState(false);
 
     // Animation Variants
     const mainVariants = performanceSettings.enhancedMotion ? {
@@ -132,17 +132,30 @@ export default function UserMenuContent({
     const [confirmConfig, setConfirmConfig] = useState(null); // { title, message, onConfirm, actionLabel, isDanger }
 
     const modelListRef = useRef(null);
-    const modelSelectorRef = useRef(null);
 
     // Scroll selected model into view within the list when it opens
     useEffect(() => {
-        if (isModelListOpen && selectedModel && modelListRef.current && !isModelsLoading && models.length > 0) {
-            const selectedElement = modelListRef.current.querySelector(`[data-model-id="${selectedModel}"]`);
-            if (selectedElement) {
-                selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-            }
+        if (currentView === 'api_models' && selectedModel && modelListRef.current && apiModelsAnimationDone && !isModelsLoading && models.length > 0) {
+            const container = modelListRef.current;
+            let attempts = 0;
+            const scrollInterval = setInterval(() => {
+                const selectedElement = container.querySelector(`[data-model-id="${selectedModel}"]`);
+                if (selectedElement) {
+                    selectedElement.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    attempts++;
+                    // We do it a few times to fight any late-layout shifts or transitions
+                    if (attempts >= 3) clearInterval(scrollInterval);
+                } else {
+                    attempts++;
+                    if (attempts >= 10) clearInterval(scrollInterval);
+                }
+            }, 100);
+
+            return () => clearInterval(scrollInterval);
+        } else if (currentView !== 'api_models') {
+            setApiModelsAnimationDone(false);
         }
-    }, [isModelListOpen, selectedModel, isModelsLoading, models]);
+    }, [currentView, selectedModel, isModelsLoading, models, apiModelsAnimationDone]);
 
     // Helper: get the effective max output tokens for the selected model
     // maxCompletionTokens = actual max output tokens (from API if available)
@@ -225,7 +238,7 @@ export default function UserMenuContent({
             );
             setCustomProviders(newCustoms);
         }
-        setIsModelListOpen(false);
+        setCurrentView('api');
     };
 
     const filteredModels = models.filter(m => {
@@ -576,170 +589,120 @@ export default function UserMenuContent({
                                     </div>
                                 )}
 
-                                {/* API Key Input - collapse when model list is open */}
-                                {!isModelListOpen && (
-                                    <div className="space-y-2">
-                                        <label className="text-sm text-gray-400 font-medium ml-1">
+                                {/* API Key Input */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between ml-1">
+                                        <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">
                                             {aiProvider === 'groq' ? 'Groq Key' : aiProvider === 'cerebras' ? 'Cerebras Key' : aiProvider === 'mistral' ? 'Mistral Key' : aiProvider === 'nvidia' ? 'Nvidia Key' : 'API Key'}
                                         </label>
-                                        <div className="relative">
-                                            <input
-                                                type={isApiKeyVisible ? "text" : "password"}
-                                                value={aiProvider === 'groq' ? groqApiKey : aiProvider === 'cerebras' ? cerebrasApiKey : aiProvider === 'mistral' ? mistralApiKey : aiProvider === 'nvidia' ? nvidiaApiKey : (customProviders.find(p => p.id === aiProvider)?.apiKey || apiKey)}
-                                                onChange={(e) => {
-                                                    const key = e.target.value;
-                                                    if (aiProvider === 'groq') {
-                                                        setGroqApiKey(key);
-                                                        localStorage.setItem('groq_api_key', key);
-                                                    } else if (aiProvider === 'cerebras') {
-                                                        setCerebrasApiKey(key);
-                                                        localStorage.setItem('cerebras_api_key', key);
-                                                    } else if (aiProvider === 'mistral') {
-                                                        setMistralApiKey(key);
-                                                        localStorage.setItem('mistral_api_key', key);
-                                                    } else if (aiProvider === 'nvidia') {
-                                                        setNvidiaApiKey(key);
-                                                        localStorage.setItem('nvidia_api_key', key);
-                                                    } else {
-                                                        const custom = customProviders.find(p => p.id === aiProvider);
-                                                        if (custom) {
-                                                            const newCustoms = customProviders.map(p =>
-                                                                p.id === aiProvider ? { ...p, apiKey: key } : p
-                                                            );
-                                                            setCustomProviders(newCustoms);
-                                                        } else {
-                                                            setApiKey(key);
-                                                            localStorage.setItem('openrouter_api_key', key);
-                                                        }
-                                                    }
-                                                }}
-                                                onBlur={() => onRefreshModels(aiProvider)}
-                                                placeholder={aiProvider === 'groq' ? "gsk_..." : aiProvider === 'cerebras' ? "csk-..." : aiProvider === 'mistral' ? "Mistral API Key" : aiProvider === 'nvidia' ? "nvapi-..." : (customProviders.find(p => p.id === aiProvider) ? "Enter API Key..." : "sk-or-...")}
-                                                className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
-                                            />
-                                            <button
-                                                onClick={() => setIsApiKeyVisible(!isApiKeyVisible)}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 p-1"
-                                            >
-                                                {isApiKeyVisible ? <EyeOff size={16} /> : <Eye size={16} />}
-                                            </button>
-                                        </div>
                                     </div>
-                                )}
-
-                                {/* Model Selector */}
-                                <div ref={modelSelectorRef} className="space-y-2">
-                                    <label className="text-sm text-gray-400 font-medium ml-1">Model Selection</label>
-                                    {isModelListOpen ? (
-                                        <div className="bg-black/30 border border-white/10 rounded-xl p-3 space-y-3">
-                                            <div className="relative">
-                                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                                                <input
-                                                    type="text"
-                                                    value={searchQuery}
-                                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                                    placeholder="Search models..."
-                                                    className="w-full bg-white/5 border border-white/5 rounded-lg pl-9 pr-9 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50"
-                                                />
-                                            </div>
-                                            <div ref={modelListRef} className="overflow-y-auto custom-scrollbar -mx-1 px-1 space-y-1" style={{ maxHeight: 'clamp(120px, 30vh, 300px)' }}>
-                                                {isModelsLoading ? (
-                                                    <div className="flex items-center justify-center py-4">
-                                                        <Loader2 size={20} className="animate-spin text-violet-400" />
-                                                    </div>
-                                                ) : !hasProviderKey() ? (
-                                                    <div className="text-center py-4 text-amber-400/80 text-xs px-4">
-                                                        Please enter an API key first to load models.
-                                                    </div>
-                                                ) : filteredModels.length === 0 ? (
-                                                    <div className="text-center py-4 text-gray-500 text-xs">No models found</div>
-                                                ) : (
-                                                    // Ensure uniqueness by ID even at render time to prevent React warnings
-                                                    Array.from(new Map(filteredModels.map(m => [m.id, m])).values()).map(model => (
-                                                        <button
-                                                            key={model.id}
-                                                            data-model-id={model.id}
-                                                            onClick={() => handleModelSelect(model.id)}
-                                                            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all border border-transparent ${selectedModel === model.id
-                                                                ? 'bg-violet-600/20 text-violet-300 border-violet-500/30'
-                                                                : 'text-gray-300 hover:bg-white/5 hover:border-white/5'
-                                                                }`}
-                                                        >
-                                                            <div className="font-medium truncate text-xs">{model.name}</div>
-                                                            <div className="text-[9px] opacity-50 truncate font-mono mt-0.5">{model.id}</div>
-                                                        </button>
-                                                    ))
-                                                )}
-                                            </div>
-                                            <button
-                                                onClick={() => setIsModelListOpen(false)}
-                                                className="w-full py-2 text-xs text-gray-400 hover:text-white"
-                                            >
-                                                Close List
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            onClick={() => {
-                                                setIsModelListOpen(true);
-                                                onRefreshModels(aiProvider);
-                                            }}
-                                            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-sm text-white text-left flex items-center justify-between hover:border-violet-500/50 hover:bg-white/5 transition-all group"
-                                        >
-                                            <span className="truncate flex-1 font-mono text-xs">{selectedModel}</span>
-                                            <ChevronRight size={16} className="text-gray-400 group-hover:text-violet-400 transition-colors" />
-                                        </button>
-                                    )}
-                                </div>
-
-                                {/* Max Tokens Slider - collapse when model list is open */}
-                                {!isModelListOpen && (
-                                    <div className="space-y-2 pt-2 border-t border-white/5">
-                                        <div className="flex items-center justify-between ml-1">
-                                            <label className="text-sm text-gray-400 font-medium">Max Tokens</label>
-                                            <span className="text-xs font-mono text-violet-300 bg-violet-500/10 px-2 py-0.5 rounded border border-violet-500/20">
-                                                {maxTokens.toLocaleString()}
-                                            </span>
-                                        </div>
+                                    <div className="relative">
                                         <input
-                                            type="range"
-                                            min="1024"
-                                            max={getModelMaxOutputTokens()}
-                                            step="1024"
-                                            value={maxTokens}
+                                            type={isApiKeyVisible ? "text" : "password"}
+                                            value={aiProvider === 'groq' ? groqApiKey : aiProvider === 'cerebras' ? cerebrasApiKey : aiProvider === 'mistral' ? mistralApiKey : aiProvider === 'nvidia' ? nvidiaApiKey : (customProviders.find(p => p.id === aiProvider)?.apiKey || apiKey)}
                                             onChange={(e) => {
-                                                const val = parseInt(e.target.value);
-                                                setMaxTokens(val);
-                                                localStorage.setItem('ai_max_tokens', val);
-                                                if (selectedModel) {
-                                                    localStorage.setItem(`max_tokens_${selectedModel}`, val);
+                                                const key = e.target.value;
+                                                if (aiProvider === 'groq') {
+                                                    setGroqApiKey(key);
+                                                    localStorage.setItem('groq_api_key', key);
+                                                } else if (aiProvider === 'cerebras') {
+                                                    setCerebrasApiKey(key);
+                                                    localStorage.setItem('cerebras_api_key', key);
+                                                } else if (aiProvider === 'mistral') {
+                                                    setMistralApiKey(key);
+                                                    localStorage.setItem('mistral_api_key', key);
+                                                } else if (aiProvider === 'nvidia') {
+                                                    setNvidiaApiKey(key);
+                                                    localStorage.setItem('nvidia_api_key', key);
+                                                } else {
+                                                    const custom = customProviders.find(p => p.id === aiProvider);
+                                                    if (custom) {
+                                                        const newCustoms = customProviders.map(p =>
+                                                            p.id === aiProvider ? { ...p, apiKey: key } : p
+                                                        );
+                                                        setCustomProviders(newCustoms);
+                                                    } else {
+                                                        setApiKey(key);
+                                                        localStorage.setItem('openrouter_api_key', key);
+                                                    }
                                                 }
                                             }}
-                                            className="w-full h-2 bg-black/30 rounded-lg appearance-none cursor-pointer accent-violet-500 hover:accent-violet-400 transition-all"
+                                            onBlur={() => onRefreshModels(aiProvider)}
+                                            placeholder={aiProvider === 'groq' ? "gsk_..." : aiProvider === 'cerebras' ? "csk-..." : aiProvider === 'mistral' ? "Mistral API Key" : aiProvider === 'nvidia' ? "nvapi-..." : (customProviders.find(p => p.id === aiProvider) ? "Enter API Key..." : "sk-or-...")}
+                                            className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-4 pr-12 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50 focus:bg-black/40 transition-all"
                                         />
-                                        <div className="flex justify-between px-1">
-                                            <span className="text-[10px] text-gray-600 font-mono">1k</span>
-                                            <span className="text-[10px] text-gray-600 font-mono">
-                                                {`${(getModelMaxOutputTokens() / 1024).toFixed(0)}k`}
-                                            </span>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Help Links - collapse when model list is open */}
-                                {!isModelListOpen && (
-                                    <div className="pt-4 border-t border-white/5">
-                                        <a
-                                            href={aiProvider === 'groq' ? "https://console.groq.com/keys" : aiProvider === 'cerebras' ? "https://cloud.cerebras.ai/" : aiProvider === 'mistral' ? "https://console.mistral.ai/api-keys/" : aiProvider === 'nvidia' ? "https://build.nvidia.com/explore/discover" : "https://openrouter.ai/keys"}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-xs text-violet-400 hover:text-violet-300 hover:underline flex items-center justify-between group"
+                                        <button
+                                            onClick={() => setIsApiKeyVisible(!isApiKeyVisible)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 p-1 transition-colors"
                                         >
-                                            <span>Get your {aiProvider === 'groq' ? 'Groq' : aiProvider === 'cerebras' ? 'Cerebras' : aiProvider === 'mistral' ? 'Mistral' : aiProvider === 'nvidia' ? 'Nvidia' : 'OpenRouter'} key &rarr;</span>
-                                            <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                                        </a>
+                                            {isApiKeyVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
                                     </div>
-                                )}
+                                </div>
+
+                                {/* Model Selector */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between ml-1">
+                                        <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Model Selection</label>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setCurrentView('api_models');
+                                            onRefreshModels(aiProvider);
+                                        }}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white text-left flex items-center justify-between hover:border-violet-500/50 hover:bg-white/10 transition-all group"
+                                    >
+                                        <span className="truncate flex-1 text-sm font-medium text-gray-300 group-hover:text-white transition-colors">
+                                            {models.find(m => m.id === selectedModel)?.name || selectedModel}
+                                        </span>
+                                        <ChevronRight size={18} className="text-gray-600 group-hover:text-violet-400 transition-colors" />
+                                    </button>
+                                </div>
+
+                                {/* Max Tokens Slider */}
+                                <div className="space-y-4 pt-4 border-t border-white/5">
+                                    <div className="flex items-center justify-between ml-1">
+                                        <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Max Tokens</label>
+                                        <span className="text-xs font-mono text-violet-300 bg-violet-500/10 px-2.5 py-1 rounded-lg border border-violet-500/20 shadow-sm shadow-violet-500/5">
+                                            {maxTokens.toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="1024"
+                                        max={getModelMaxOutputTokens()}
+                                        step="1024"
+                                        value={maxTokens}
+                                        onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            setMaxTokens(val);
+                                            localStorage.setItem('ai_max_tokens', val);
+                                            if (selectedModel) {
+                                                localStorage.setItem(`max_tokens_${selectedModel}`, val);
+                                            }
+                                        }}
+                                        className="w-full h-2 bg-black/30 rounded-lg appearance-none cursor-pointer accent-violet-500 hover:accent-violet-400 transition-all"
+                                    />
+                                    <div className="flex justify-between px-1">
+                                        <span className="text-[10px] text-gray-600 font-mono">1k</span>
+                                        <span className="text-[10px] text-gray-600 font-mono">
+                                            {`${(getModelMaxOutputTokens() / 1024).toFixed(0)}k`}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Help Links */}
+                                <div className="pt-4 border-t border-white/5">
+                                    <a
+                                        href={aiProvider === 'groq' ? "https://console.groq.com/keys" : aiProvider === 'cerebras' ? "https://cloud.cerebras.ai/" : aiProvider === 'mistral' ? "https://console.mistral.ai/api-keys/" : aiProvider === 'nvidia' ? "https://build.nvidia.com/explore/discover" : "https://openrouter.ai/keys"}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-violet-400 hover:text-violet-300 hover:underline flex items-center justify-between group"
+                                    >
+                                        <span>Get your {aiProvider === 'groq' ? 'Groq' : aiProvider === 'cerebras' ? 'Cerebras' : aiProvider === 'mistral' ? 'Mistral' : aiProvider === 'nvidia' ? 'Nvidia' : 'OpenRouter'} key &rarr;</span>
+                                        <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </a>
+                                </div>
                             </div>
                         </motion.div>
                     )
@@ -849,6 +812,64 @@ export default function UserMenuContent({
                                     </div>
                                 </div>
                             </div>
+                        </motion.div>
+                    )
+                }
+
+                {
+                    currentView === 'api_models' && (
+                        <motion.div
+                            key="api_models"
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            onAnimationComplete={() => setApiModelsAnimationDone(true)}
+                            variants={subViewVariants}
+                            className="flex flex-col h-full"
+                        >
+                            <MenuHeader title="Model Selection" onBack={() => setCurrentView('api')} />
+                            <div ref={modelListRef} className="flex-1 overflow-y-auto custom-scrollbar px-6" style={{ scrollbarGutter: 'stable both-edges' }}>
+                                <div className="sticky top-0 z-10 bg-[#1a1a2e] pt-6 pb-2">
+                                    <div className="relative">
+                                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                                        <input
+                                            type="text"
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            placeholder="Search models..."
+                                            className="w-full bg-black/30 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-1 pb-6 pt-2">
+                                    {isModelsLoading ? (
+                                            <div className="flex items-center justify-center py-8">
+                                                <Loader2 size={24} className="animate-spin text-violet-400" />
+                                            </div>
+                                        ) : !hasProviderKey() ? (
+                                            <div className="text-center py-8 text-amber-400/80 text-sm px-6 bg-amber-500/5 rounded-2xl border border-amber-500/10">
+                                                Please enter an API key first to load models.
+                                            </div>
+                                        ) : filteredModels.length === 0 ? (
+                                            <div className="text-center py-8 text-gray-500 text-sm">No models found</div>
+                                        ) : (
+                                            Array.from(new Map(filteredModels.map(m => [m.id, m])).values()).map(model => (
+                                                <button
+                                                    key={model.id}
+                                                    data-model-id={model.id}
+                                                    onClick={() => handleModelSelect(model.id)}
+                                                    className={`w-full text-left px-4 py-3 rounded-xl transition-all border ${selectedModel === model.id
+                                                        ? 'bg-violet-600/10 text-white border-violet-500/50'
+                                                        : 'text-gray-300 bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20'
+                                                        }`}
+                                                >
+                                                    <div className="font-bold text-xs truncate">{model.name}</div>
+                                                    <div className="text-[9px] opacity-40 truncate font-mono mt-0.5">{model.id}</div>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
                         </motion.div>
                     )
                 }
