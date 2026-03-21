@@ -540,11 +540,11 @@ export default function UserMenuContent({
                                     </div>
                                     <button
                                         onClick={() => setCurrentView('api_providers')}
-                                        className="flex items-center justify-between w-full p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all group"
+                                        className="flex items-center justify-between w-full p-3 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20 transition-all group"
                                     >
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-400">
-                                                <Cloud size={20} />
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center text-violet-400">
+                                                <Cloud size={16} />
                                             </div>
                                             <div className="text-left">
                                                 <p className="text-sm font-bold text-white">
@@ -561,33 +561,11 @@ export default function UserMenuContent({
                                                 <p className="text-xs text-gray-500 font-medium">Click to switch or manage</p>
                                             </div>
                                         </div>
-                                        <ChevronRight size={18} className="text-gray-600 group-hover:text-gray-400 group-hover:translate-x-0.5 transition-all" />
+                                        <ChevronRight size={16} className="text-gray-600 group-hover:text-violet-400 transition-colors" />
                                     </button>
                                 </div>
 
-                                {/* Custom Base URL for Custom Providers */}
-                                {customProviders.find(p => p.id === aiProvider) && (
-                                    <div className="space-y-3 p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10">
-                                        <div className="flex items-center gap-2 text-amber-400">
-                                            <Database size={16} />
-                                            <label className="text-xs font-bold uppercase tracking-wider">Custom Base URL</label>
-                                        </div>
-                                        <div className="relative group">
-                                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-amber-400 transition-colors">
-                                                <ExternalLink size={16} />
-                                            </div>
-                                            <input
-                                                type="text"
-                                                value={customProviders.find(p => p.id === aiProvider)?.baseUrl || ''}
-                                                readOnly
-                                                className="w-full bg-black/40 border border-white/5 rounded-xl py-3 pl-10 pr-4 text-sm text-gray-400 focus:outline-none"
-                                            />
-                                        </div>
-                                        <p className="text-[10px] text-amber-500/60 font-medium px-1">
-                                            To change the URL, edit this provider in the Switch Provider menu.
-                                        </p>
-                                    </div>
-                                )}
+
 
                                 {/* API Key Input */}
                                 <div className="space-y-3">
@@ -629,7 +607,7 @@ export default function UserMenuContent({
                                             }}
                                             onBlur={() => onRefreshModels(aiProvider)}
                                             placeholder={aiProvider === 'groq' ? "gsk_..." : aiProvider === 'cerebras' ? "csk-..." : aiProvider === 'mistral' ? "Mistral API Key" : aiProvider === 'nvidia' ? "nvapi-..." : (customProviders.find(p => p.id === aiProvider) ? "Enter API Key..." : "sk-or-...")}
-                                            className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-4 pr-12 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50 focus:bg-black/40 transition-all"
+                                            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 pr-12 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50 focus:bg-black/40 transition-all"
                                         />
                                         <button
                                             onClick={() => setIsApiKeyVisible(!isApiKeyVisible)}
@@ -650,12 +628,12 @@ export default function UserMenuContent({
                                             setCurrentView('api_models');
                                             onRefreshModels(aiProvider);
                                         }}
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white text-left flex items-center justify-between hover:border-violet-500/50 hover:bg-white/10 transition-all group"
+                                        className="flex items-center justify-between w-full p-3 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20 transition-all group text-left"
                                     >
                                         <span className="truncate flex-1 text-sm font-medium text-gray-300 group-hover:text-white transition-colors">
                                             {models.find(m => m.id === selectedModel)?.name || selectedModel}
                                         </span>
-                                        <ChevronRight size={18} className="text-gray-600 group-hover:text-violet-400 transition-colors" />
+                                        <ChevronRight size={16} className="text-gray-600 group-hover:text-violet-400 transition-colors" />
                                     </button>
                                 </div>
 
@@ -738,13 +716,15 @@ export default function UserMenuContent({
                                                     setCurrentView('api');
                                                     onRefreshModels(provider.id);
                                                 }}
-                                                className={`flex items-center justify-between p-4 rounded-xl border transition-all ${aiProvider === provider.id
-                                                    ? 'bg-violet-600/10 border-violet-500/50 text-white'
+                                                className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${aiProvider === provider.id
+                                                    ? 'bg-violet-600/10 border-violet-500/50'
                                                     : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20'
                                                     }`}
                                             >
-                                                <span className="text-sm font-bold">{provider.name}</span>
-                                                {aiProvider === provider.id && <Check size={16} className="text-violet-400" />}
+                                                <div className="flex-shrink-0 w-5 flex justify-center">
+                                                    {aiProvider === provider.id && <Check size={16} className="text-violet-400" />}
+                                                </div>
+                                                <span className={`text-sm font-bold ${aiProvider === provider.id ? 'text-white' : 'text-gray-400 group-hover:text-gray-300'}`}>{provider.name}</span>
                                             </button>
                                         ))}
                                     </div>
@@ -775,37 +755,39 @@ export default function UserMenuContent({
                                             customProviders.map(provider => (
                                                 <div
                                                     key={provider.id}
-                                                    className={`group relative flex items-center justify-between p-4 rounded-xl border transition-all ${aiProvider === provider.id
+                                                    className={`group relative flex items-center p-3 rounded-xl border transition-all ${aiProvider === provider.id
                                                         ? 'bg-violet-600/10 border-violet-500/50'
                                                         : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
                                                         }`}
                                                 >
-                                                    <button
-                                                        onClick={() => {
-                                                            setAiProvider(provider.id);
-                                                            setCurrentView('api');
-                                                            onRefreshModels(provider.id);
-                                                        }}
-                                                        className="flex-1 text-left"
-                                                    >
-                                                        <span className={`text-sm font-bold ${aiProvider === provider.id ? 'text-white' : 'text-gray-400'}`}>
-                                                            {provider.name}
-                                                        </span>
-                                                        <p className="text-[10px] text-gray-500 truncate max-w-[180px]">{provider.baseUrl}</p>
-                                                    </button>
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex-1 flex items-center gap-3 min-w-0">
+                                                        <div className="flex-shrink-0 w-5 flex justify-center">
+                                                            {aiProvider === provider.id && <Check size={16} className="text-violet-400" />}
+                                                        </div>
                                                         <button
                                                             onClick={() => {
-                                                                setEditingProvider(provider);
-                                                                setCurrentView('api_custom_edit');
+                                                                setAiProvider(provider.id);
+                                                                setCurrentView('api');
+                                                                onRefreshModels(provider.id);
                                                             }}
-                                                            className="p-2 text-violet-400/70 hover:text-violet-400 hover:bg-violet-400/10 rounded-lg transition-all"
-                                                            title="Edit Provider"
+                                                            className="flex-1 text-left min-w-0"
                                                         >
-                                                            <Pencil size={16} />
+                                                            <span className={`text-sm font-bold block truncate ${aiProvider === provider.id ? 'text-white' : 'text-gray-400 group-hover:text-gray-300'}`}>
+                                                                {provider.name}
+                                                            </span>
+                                                            <p className="text-[10px] text-gray-500 truncate">{provider.baseUrl}</p>
                                                         </button>
-                                                        {aiProvider === provider.id && <Check size={16} className="text-violet-400" />}
                                                     </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            setEditingProvider(provider);
+                                                            setCurrentView('api_custom_edit');
+                                                        }}
+                                                        className="flex-shrink-0 p-2 text-gray-500 hover:text-violet-400 hover:bg-violet-400/10 rounded-lg transition-all ml-2"
+                                                        title="Edit Provider"
+                                                    >
+                                                        <Pencil size={16} />
+                                                    </button>
                                                 </div>
                                             ))
                                         )}
@@ -969,7 +951,7 @@ export default function UserMenuContent({
                                             setCurrentView('api');
                                             onRefreshModels(newProvider.id);
                                         }}
-                                        className="w-full py-4 rounded-2xl bg-violet-600 text-white font-bold text-sm shadow-lg shadow-violet-900/20 hover:bg-violet-500 transition-all"
+                                        className="w-full py-3 rounded-xl bg-violet-600 text-white font-bold text-sm shadow-lg shadow-violet-900/20 hover:bg-violet-500 transition-all"
                                     >
                                         {editingProvider?.id ? "Update Provider" : "Save Provider"}
                                     </button>
@@ -993,7 +975,7 @@ export default function UserMenuContent({
                                                     }
                                                 });
                                             }}
-                                            className="w-full py-4 rounded-2xl bg-red-500/10 text-red-400 border border-red-500/20 font-bold text-sm hover:bg-red-500/20 transition-all"
+                                            className="w-full py-3 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20 font-bold text-sm hover:bg-red-500/20 transition-all"
                                         >
                                             Delete Provider
                                         </button>
