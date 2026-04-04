@@ -65,6 +65,7 @@ function App() {
     const [cerebrasApiKey, setCerebrasApiKey] = useState(localStorage.getItem('cerebras_api_key') || '');
     const [mistralApiKey, setMistralApiKey] = useState(localStorage.getItem('mistral_api_key') || '');
     const [nvidiaApiKey, setNvidiaApiKey] = useState(localStorage.getItem('nvidia_api_key') || '');
+    const [googleApiKey, setGoogleApiKey] = useState(localStorage.getItem('google_api_key') || '');
     const [selectedModel, setSelectedModel] = useState(() => {
         const provider = localStorage.getItem('ai_provider') || 'openrouter';
         if (provider === 'groq') {
@@ -82,6 +83,10 @@ function App() {
         if (provider === 'nvidia') {
             const saved = localStorage.getItem('nvidia_model');
             return saved ? saved : 'meta/llama-3.3-70b-instruct';
+        }
+        if (provider === 'google') {
+            const saved = localStorage.getItem('google_model');
+            return saved ? saved : 'gemini-3-flash';
         }
 
         // Handle custom providers
@@ -161,7 +166,8 @@ function App() {
         groq: [],
         cerebras: [],
         mistral: [],
-        nvidia: []
+        nvidia: [],
+        google: []
     });
     const [customProviders, setCustomProviders] = useState(() => {
         const saved = localStorage.getItem('custom_providers');
@@ -172,7 +178,8 @@ function App() {
         groq: false,
         cerebras: false,
         mistral: false,
-        nvidia: false
+        nvidia: false,
+        google: false
     });
 
     useEffect(() => {
@@ -324,6 +331,7 @@ function App() {
         if (aiProvider === 'cerebras') return cerebrasApiKey;
         if (aiProvider === 'mistral') return mistralApiKey;
         if (aiProvider === 'nvidia') return nvidiaApiKey;
+        if (aiProvider === 'google') return googleApiKey;
 
         // Check custom providers
         const custom = customProviders.find(p => p.id === aiProvider);
@@ -2756,7 +2764,7 @@ function App() {
     };
 
     const refreshAllModels = async () => {
-        const providers = ['openrouter', 'groq', 'cerebras', 'mistral'];
+        const providers = ['openrouter', 'groq', 'cerebras', 'mistral', 'nvidia', 'google'];
         for (const p of providers) {
             await handleRefreshModels(p);
         }
@@ -2783,7 +2791,8 @@ function App() {
                 groq: localStorage.getItem('groq_api_key'),
                 cerebras: localStorage.getItem('cerebras_api_key'),
                 mistral: localStorage.getItem('mistral_api_key'),
-                nvidia: localStorage.getItem('nvidia_api_key')
+                nvidia: localStorage.getItem('nvidia_api_key'),
+                google: localStorage.getItem('google_api_key')
             };
             const models = await fetchModels(providerToRefresh, apiKeys);
             if (models && models.length > 0) {
@@ -2888,6 +2897,8 @@ function App() {
                                         newModel = localStorage.getItem('mistral_model') || 'mistral-large-latest';
                                     } else if (p === 'nvidia') {
                                         newModel = localStorage.getItem('nvidia_model') || 'meta/llama-3.3-70b-instruct';
+                                    } else if (p === 'google') {
+                                        newModel = localStorage.getItem('google_model') || 'gemini-3-flash';
                                     } else if (p === 'openrouter') {
                                         newModel = localStorage.getItem('openrouter_model') || 'tngtech/deepseek-r1t2-chimera:free';
                                     } else {
@@ -2908,6 +2919,8 @@ function App() {
                                 setMistralApiKey={setMistralApiKey}
                                 nvidiaApiKey={nvidiaApiKey}
                                 setNvidiaApiKey={setNvidiaApiKey}
+                                googleApiKey={googleApiKey}
+                                setGoogleApiKey={setGoogleApiKey}
                                 selectedModel={selectedModel}
                                 setSelectedModel={setSelectedModel}
                                 customInstructions={customInstructions}

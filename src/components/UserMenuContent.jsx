@@ -30,6 +30,8 @@ export default function UserMenuContent({
     setMistralApiKey,
     nvidiaApiKey,
     setNvidiaApiKey,
+    googleApiKey,
+    setGoogleApiKey,
     aiProvider,
     setAiProvider,
     selectedModel,
@@ -86,7 +88,12 @@ export default function UserMenuContent({
     // API Settings State
     const [isApiKeyVisible, setIsApiKeyVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [maxTokens, setMaxTokens] = useState(parseInt(localStorage.getItem('ai_max_tokens')) || 73728);
+    const [maxTokens, setMaxTokens] = useState(() => {
+        const saved = localStorage.getItem('ai_max_tokens');
+        if (saved === 'auto') return 'auto';
+        const parsed = parseInt(saved);
+        return isNaN(parsed) ? 73728 : parsed;
+    });
     const [editingProvider, setEditingProvider] = useState(null); // Provider object for Add/Edit view
     const [apiModelsAnimationDone, setApiModelsAnimationDone] = useState(false);
 
@@ -179,6 +186,7 @@ export default function UserMenuContent({
         if (aiProvider === 'cerebras') return !!cerebrasApiKey;
         if (aiProvider === 'mistral') return !!mistralApiKey;
         if (aiProvider === 'nvidia') return !!nvidiaApiKey;
+        if (aiProvider === 'google') return !!googleApiKey;
 
         // Check custom providers
         const custom = customProviders.find(p => p.id === aiProvider);
@@ -192,31 +200,15 @@ export default function UserMenuContent({
         if (!selectedModel) return;
         const savedMaxTokens = localStorage.getItem(`max_tokens_${selectedModel}`);
         if (savedMaxTokens) {
-            const val = parseInt(savedMaxTokens);
-            setMaxTokens(val);
-            localStorage.setItem('ai_max_tokens', val);
+            const val = savedMaxTokens === 'auto' ? 'auto' : parseInt(savedMaxTokens);
+            if (val === 'auto' || !isNaN(val)) {
+                setMaxTokens(val);
+                localStorage.setItem('ai_max_tokens', val);
+            }
         } else {
-            // Determine a safe default
-            const currentModelData = models.find(m => m.id === selectedModel);
-            let defaultTokens = 8192; // Safe default for unknown limits
-
-            if (currentModelData && currentModelData.maxCompletionTokens > 0) {
-                // If we know the limit, default to it (e.g. OpenRouter)
-                defaultTokens = currentModelData.maxCompletionTokens;
-            }
-
-            // Ensure default doesn't exceed slider max
-            const sliderMax = getModelMaxOutputTokens();
-
-            // Use model's max for NVIDIA by default, or 8192 for others (capped by slider max)
-            if (aiProvider === 'nvidia') {
-                defaultTokens = sliderMax;
-            } else {
-                defaultTokens = Math.min(8192, sliderMax);
-            }
-
-            setMaxTokens(defaultTokens);
-            localStorage.setItem('ai_max_tokens', defaultTokens);
+            // Default to 'auto' for new models as requested
+            setMaxTokens('auto');
+            localStorage.setItem('ai_max_tokens', 'auto');
         }
     }, [selectedModel, models, aiProvider]);
 
@@ -231,6 +223,7 @@ export default function UserMenuContent({
         else if (aiProvider === 'mistral') localStorage.setItem('mistral_model', modelId);
         else if (aiProvider === 'openrouter') localStorage.setItem('openrouter_model', modelId);
         else if (aiProvider === 'nvidia') localStorage.setItem('nvidia_model', modelId);
+        else if (aiProvider === 'google') localStorage.setItem('google_model', modelId);
         else {
             // Update custom provider model
             const newCustoms = customProviders.map(p =>
@@ -553,7 +546,8 @@ export default function UserMenuContent({
                                                         { id: 'openrouter', name: 'OpenRouter' },
                                                         { id: 'groq', name: 'Groq' },
                                                         { id: 'mistral', name: 'Mistral' },
-                                                        { id: 'nvidia', name: 'Nvidia NIM' }
+                                                        { id: 'nvidia', name: 'Nvidia NIM' },
+                                                        { id: 'google', name: 'Google AI Studio' }
                                                     ].find(p => p.id === aiProvider)?.name ||
                                                         customProviders.find(p => p.id === aiProvider)?.name ||
                                                         aiProvider}
@@ -571,13 +565,13 @@ export default function UserMenuContent({
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between ml-1">
                                         <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">
-                                            {aiProvider === 'groq' ? 'Groq Key' : aiProvider === 'cerebras' ? 'Cerebras Key' : aiProvider === 'mistral' ? 'Mistral Key' : aiProvider === 'nvidia' ? 'Nvidia Key' : 'API Key'}
+                                            {aiProvider === 'groq' ? 'Groq Key' : aiProvider === 'cerebras' ? 'Cerebras Key' : aiProvider === 'mistral' ? 'Mistral Key' : aiProvider === 'nvidia' ? 'Nvidia Key' : aiProvider === 'google' ? 'Google Key' : 'API Key'}
                                         </label>
                                     </div>
                                     <div className="relative">
                                         <input
                                             type={isApiKeyVisible ? "text" : "password"}
-                                            value={aiProvider === 'groq' ? groqApiKey : aiProvider === 'cerebras' ? cerebrasApiKey : aiProvider === 'mistral' ? mistralApiKey : aiProvider === 'nvidia' ? nvidiaApiKey : (customProviders.find(p => p.id === aiProvider)?.apiKey || apiKey)}
+                                            value={aiProvider === 'groq' ? groqApiKey : aiProvider === 'cerebras' ? cerebrasApiKey : aiProvider === 'mistral' ? mistralApiKey : aiProvider === 'nvidia' ? nvidiaApiKey : aiProvider === 'google' ? googleApiKey : (customProviders.find(p => p.id === aiProvider)?.apiKey || apiKey)}
                                             onChange={(e) => {
                                                 const key = e.target.value;
                                                 if (aiProvider === 'groq') {
@@ -592,6 +586,9 @@ export default function UserMenuContent({
                                                 } else if (aiProvider === 'nvidia') {
                                                     setNvidiaApiKey(key);
                                                     localStorage.setItem('nvidia_api_key', key);
+                                                } else if (aiProvider === 'google') {
+                                                    setGoogleApiKey(key);
+                                                    localStorage.setItem('google_api_key', key);
                                                 } else {
                                                     const custom = customProviders.find(p => p.id === aiProvider);
                                                     if (custom) {
@@ -606,7 +603,7 @@ export default function UserMenuContent({
                                                 }
                                             }}
                                             onBlur={() => onRefreshModels(aiProvider)}
-                                            placeholder={aiProvider === 'groq' ? "gsk_..." : aiProvider === 'cerebras' ? "csk-..." : aiProvider === 'mistral' ? "Mistral API Key" : aiProvider === 'nvidia' ? "nvapi-..." : (customProviders.find(p => p.id === aiProvider) ? "Enter API Key..." : "sk-or-...")}
+                                            placeholder={aiProvider === 'groq' ? "gsk_..." : aiProvider === 'cerebras' ? "csk-..." : aiProvider === 'mistral' ? "Mistral API Key" : aiProvider === 'nvidia' ? "nvapi-..." : aiProvider === 'google' ? "Enter Google API Key..." : (customProviders.find(p => p.id === aiProvider) ? "Enter API Key..." : "sk-or-...")}
                                             className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 pr-12 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50 focus:bg-black/40 transition-all"
                                         />
                                         <button
@@ -637,47 +634,63 @@ export default function UserMenuContent({
                                     </button>
                                 </div>
 
-                                {/* Max Tokens Slider */}
                                 <div className="space-y-4 pt-4 border-t border-white/5">
                                     <div className="flex items-center justify-between ml-1">
-                                        <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Max Tokens</label>
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Max Tokens</label>
+                                            <button 
+                                                onClick={() => {
+                                                    const newVal = maxTokens === 'auto' ? 8192 : 'auto';
+                                                    setMaxTokens(newVal);
+                                                    localStorage.setItem('ai_max_tokens', newVal);
+                                                    if (selectedModel) {
+                                                        localStorage.setItem(`max_tokens_${selectedModel}`, newVal);
+                                                    }
+                                                }}
+                                                className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-all ${maxTokens === 'auto' ? 'bg-violet-500 text-white' : 'bg-white/5 text-gray-500'}`}
+                                            >
+                                                AUTO
+                                            </button>
+                                        </div>
                                         <span className="text-xs font-mono text-violet-300 bg-violet-500/10 px-2.5 py-1 rounded-lg border border-violet-500/20 shadow-sm shadow-violet-500/5">
-                                            {maxTokens.toLocaleString()}
+                                            {maxTokens === 'auto' ? 'Automatic' : maxTokens.toLocaleString()}
                                         </span>
                                     </div>
-                                    <input
-                                        type="range"
-                                        min="1024"
-                                        max={getModelMaxOutputTokens()}
-                                        step="1024"
-                                        value={maxTokens}
-                                        onChange={(e) => {
-                                            const val = parseInt(e.target.value);
-                                            setMaxTokens(val);
-                                            localStorage.setItem('ai_max_tokens', val);
-                                            if (selectedModel) {
-                                                localStorage.setItem(`max_tokens_${selectedModel}`, val);
-                                            }
-                                        }}
-                                        className="w-full h-2 bg-black/30 rounded-lg appearance-none cursor-pointer accent-violet-500 hover:accent-violet-400 transition-all"
-                                    />
-                                    <div className="flex justify-between px-1">
-                                        <span className="text-[10px] text-gray-600 font-mono">1k</span>
-                                        <span className="text-[10px] text-gray-600 font-mono">
-                                            {`${(getModelMaxOutputTokens() / 1024).toFixed(0)}k`}
-                                        </span>
+                                    <div className={`transition-all duration-300 ${maxTokens === 'auto' ? 'opacity-30 pointer-events-none grayscale' : 'opacity-100'}`}>
+                                        <input
+                                            type="range"
+                                            min="1024"
+                                            max={getModelMaxOutputTokens()}
+                                            step="1024"
+                                            value={maxTokens === 'auto' ? 8192 : maxTokens}
+                                            onChange={(e) => {
+                                                const val = parseInt(e.target.value);
+                                                setMaxTokens(val);
+                                                localStorage.setItem('ai_max_tokens', val);
+                                                if (selectedModel) {
+                                                    localStorage.setItem(`max_tokens_${selectedModel}`, val);
+                                                }
+                                            }}
+                                            className="w-full h-2 bg-black/30 rounded-lg appearance-none cursor-pointer accent-violet-500 hover:accent-violet-400 transition-all"
+                                        />
+                                        <div className="flex justify-between px-1">
+                                            <span className="text-[10px] text-gray-600 font-mono">1k</span>
+                                            <span className="text-[10px] text-gray-600 font-mono">
+                                                {`${(getModelMaxOutputTokens() / 1024).toFixed(0)}k`}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
 
                                 {/* Help Links */}
                                 <div className="pt-4 border-t border-white/5">
                                     <a
-                                        href={aiProvider === 'groq' ? "https://console.groq.com/keys" : aiProvider === 'cerebras' ? "https://cloud.cerebras.ai/" : aiProvider === 'mistral' ? "https://console.mistral.ai/api-keys/" : aiProvider === 'nvidia' ? "https://build.nvidia.com/explore/discover" : "https://openrouter.ai/keys"}
+                                        href={aiProvider === 'groq' ? "https://console.groq.com/keys" : aiProvider === 'cerebras' ? "https://cloud.cerebras.ai/" : aiProvider === 'mistral' ? "https://console.mistral.ai/api-keys/" : aiProvider === 'nvidia' ? "https://build.nvidia.com/explore/discover" : aiProvider === 'google' ? "https://aistudio.google.com/app/apikey" : "https://openrouter.ai/keys"}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-xs text-violet-400 hover:text-violet-300 hover:underline flex items-center justify-between group"
                                     >
-                                        <span>Get your {aiProvider === 'groq' ? 'Groq' : aiProvider === 'cerebras' ? 'Cerebras' : aiProvider === 'mistral' ? 'Mistral' : aiProvider === 'nvidia' ? 'Nvidia' : 'OpenRouter'} key &rarr;</span>
+                                        <span>Get your {aiProvider === 'groq' ? 'Groq' : aiProvider === 'cerebras' ? 'Cerebras' : aiProvider === 'mistral' ? 'Mistral' : aiProvider === 'nvidia' ? 'Nvidia' : aiProvider === 'google' ? 'Google' : 'OpenRouter'} key &rarr;</span>
                                         <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                                     </a>
                                 </div>
@@ -707,7 +720,8 @@ export default function UserMenuContent({
                                             { id: 'openrouter', name: 'OpenRouter' },
                                             { id: 'groq', name: 'Groq' },
                                             { id: 'mistral', name: 'Mistral' },
-                                            { id: 'nvidia', name: 'Nvidia NIM' }
+                                            { id: 'nvidia', name: 'Nvidia NIM' },
+                                            { id: 'google', name: 'Google AI Studio' }
                                         ].map(provider => (
                                             <button
                                                 key={provider.id}

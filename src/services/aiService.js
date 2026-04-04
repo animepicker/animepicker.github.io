@@ -4,6 +4,7 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const CEREBRAS_API_URL = "https://api.cerebras.ai/v1/chat/completions";
 const MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions";
+const GOOGLE_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 // Multi-tiered proxy strategy
 const PRIMARY_PROXY = "https://anipickcors.hhhoutlook394.workers.dev/?url=";
@@ -12,11 +13,12 @@ const BACKUP_PROXY = "https://corsproxy.io/?url=";
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const NVIDIA_API_URL = isLocalhost ? "/api/nvidia/v1/chat/completions" : "https://anipickcors.hhhoutlook394.workers.dev/v1/chat/completions";
 
-const DEFAULT_OPENROUTER_MODEL = "tngtech/deepseek-r1t2-chimera:free";
-const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
+const DEFAULT_OPENROUTER_MODEL = "openai/gpt-oss-120b:free";
+const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 const DEFAULT_CEREBRAS_MODEL = "gpt-oss-120b";
 const DEFAULT_MISTRAL_MODEL = "mistral-large-latest";
-const DEFAULT_NVIDIA_MODEL = "meta/llama-3.3-70b-instruct";
+const DEFAULT_NVIDIA_MODEL = "google/gemma-4-31b-it";
+const DEFAULT_GOOGLE_MODEL = "models/gemini-3-flash-preview";
 
 // Module-level model cache to avoid re-fetching
 let modelsCache = {};
@@ -26,7 +28,8 @@ export const MODEL_URLS = {
   groq: "https://api.groq.com/openai/v1/models",
   cerebras: "https://api.cerebras.ai/v1/models",
   mistral: "https://api.mistral.ai/v1/models",
-  nvidia: isLocalhost ? "/api/nvidia/v1/models" : "https://anipickcors.hhhoutlook394.workers.dev/v1/models"
+  nvidia: isLocalhost ? "/api/nvidia/v1/models" : "https://anipickcors.hhhoutlook394.workers.dev/v1/models",
+  google: "https://generativelanguage.googleapis.com/v1beta/openai/models"
 };
 
 const getModel = (provider) => {
@@ -34,8 +37,9 @@ const getModel = (provider) => {
   if (provider === 'cerebras') return localStorage.getItem('cerebras_model') || DEFAULT_CEREBRAS_MODEL;
   if (provider === 'mistral') return localStorage.getItem('mistral_model') || DEFAULT_MISTRAL_MODEL;
   if (provider === 'nvidia') return localStorage.getItem('nvidia_model') || DEFAULT_NVIDIA_MODEL;
+  if (provider === 'google') return localStorage.getItem('google_model') || DEFAULT_GOOGLE_MODEL;
   if (provider === 'openrouter') return localStorage.getItem('openrouter_model') || DEFAULT_OPENROUTER_MODEL;
-  
+
   // Custom provider model lookup
   const customsRaw = localStorage.getItem('custom_providers');
   if (customsRaw) {
@@ -73,6 +77,9 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
     url = MISTRAL_API_URL;
   } else if (provider === 'nvidia') {
     url = NVIDIA_API_URL;
+  } else if (provider === 'google') {
+    url = GOOGLE_API_URL;
+    useProxy = false;
   } else {
     // Check if it's a custom provider
     const customsRaw = localStorage.getItem('custom_providers');
@@ -94,7 +101,7 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
 
   // Defensive check: mismatch between model ID and provider
   // Skip for custom providers as they might support any model ID format
-  const isHardcodedProvider = ['openrouter', 'groq', 'cerebras', 'mistral', 'nvidia'].includes(provider);
+  const isHardcodedProvider = ['openrouter', 'groq', 'cerebras', 'mistral', 'nvidia', 'google'].includes(provider);
   if (isHardcodedProvider && provider !== 'openrouter' && (model.includes('/') || model.includes('openai/') || model.includes('anthropic/'))) {
     console.warn(`Potential model/provider mismatch: Sending ${model} to ${provider}. This usually results in an empty response.`);
   }
@@ -127,42 +134,54 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
       // Determine max_tokens
       const storedMaxTokens = localStorage.getItem('ai_max_tokens');
       let maxTokensValue = 8192; // Global fallback
+      let omitMaxTokens = false;
 
-      if (storedMaxTokens) {
-        maxTokensValue = parseInt(storedMaxTokens);
+      if (storedMaxTokens === 'auto' || !storedMaxTokens) {
+        // 'auto' context: Omit max_tokens for all standard providers to delegate context decisions
+        // (OpenRouter, Google, OpenAI, etc. handle this natively).
+        omitMaxTokens = true;
       } else {
-        // Try to use the model's actual max context if we have it in cache
-        const providerModels = modelsCache[provider] || [];
-        const modelData = providerModels.find(m => m.id === model);
-        
-        if (modelData) {
-          // Priority: maxCompletionTokens > contextLength
-          maxTokensValue = modelData.maxCompletionTokens || modelData.contextLength || 8192;
-        } else if (provider === 'nvidia') {
-          // High fallback specifically for NVIDIA NIM if models haven't been fetched yet
-          maxTokensValue = 131072;
-        }
+        maxTokensValue = parseInt(storedMaxTokens);
+      }
+
+      const body = {
+        model: model,
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          }
+        ]
+      };
+
+      if (!omitMaxTokens) {
+        body.max_tokens = maxTokensValue;
       }
 
       response = await fetch(url, {
         method: "POST",
         headers: fetchHeaders,
         signal: signal,
-        body: JSON.stringify({
-          model: model,
-          max_tokens: maxTokensValue,
-          messages: [
-            {
-              role: "user",
-              content: prompt
-            }
-          ]
-        })
+        body: JSON.stringify(body)
       });
 
       if (response.ok) break;
-      
-      lastError = new Error(`HTTP ${response.status}`);
+
+      // Capture and log the error message for 400/Bad Request to help debug 'auto' context rejections
+      if (response.status === 400) {
+        try {
+          const errorBody = await response.clone().json();
+          console.group(`AI Service Error - ${provider} (400 Bad Request)`);
+          console.error("Endpoint:", url);
+          console.error("Response:", errorBody);
+          console.groupEnd();
+          lastError = new Error(`HTTP 400: ${errorBody.error?.message || response.statusText}`);
+        } catch (e) {
+          lastError = new Error(`HTTP ${response.status}`);
+        }
+      } else {
+        lastError = new Error(`HTTP ${response.status}`);
+      }
       lastError.status = response.status;
     } catch (e) {
       response = null;
@@ -172,7 +191,7 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
     const isRateLimit = response && response.status === 429;
     const isTransient = !response || (response && response.status >= 500);
     const isProxyUrl = url.startsWith(PRIMARY_PROXY) || url.startsWith(BACKUP_PROXY) || (provider === 'nvidia' && url === NVIDIA_API_URL && !isLocalhost);
-    
+
     // We retry on rate limits, transient errors (like 502/504), network errors (!response), 
     // or if we are using a proxy and get a non-400/401 error (could be a proxy malfunction).
     const isClientApiError = response && (response.status === 400 || response.status === 401);
@@ -194,7 +213,7 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
 
       const delayMs = response ? getRetryDelayMs(response, attempt) : Math.min(500 * Math.pow(2, attempt), 4000);
       await sleep(delayMs);
-      
+
       if (signal?.aborted) {
         const abortError = new Error('Request aborted');
         abortError.name = 'AbortError';
@@ -601,6 +620,9 @@ export const fetchModels = async (provider, apiKeys = {}) => {
     } else if (provider === 'nvidia' && apiKeys.nvidia) {
       headers["Authorization"] = `Bearer ${apiKeys.nvidia}`;
       url = MODEL_URLS.nvidia;
+    } else if (provider === 'google' && apiKeys.google) {
+      headers["Authorization"] = `Bearer ${apiKeys.google}`;
+      url = MODEL_URLS.google;
     } else if (MODEL_URLS[provider]) {
       // standard providers with pre-defined URLs use provided keys or nothing
     } else {
@@ -612,7 +634,7 @@ export const fetchModels = async (provider, apiKeys = {}) => {
           const current = customs.find(p => p.id === provider);
           if (current && current.baseUrl) {
             let base = current.baseUrl.endsWith('/') ? current.baseUrl.slice(0, -1) : current.baseUrl;
-            
+
             if (current.useProxy) {
               url = `${PRIMARY_PROXY}${base}/models`;
             } else {
@@ -638,9 +660,9 @@ export const fetchModels = async (provider, apiKeys = {}) => {
         const fetchHeaders = { ...headers };
         let options = { method, headers: fetchHeaders };
         if (method === "POST") {
-           // Provide an empty body for POST to models endpoint if necessary, 
-           // but some endpoints might just need the method change.
-           // Usually /v1/models doesn't need a body, but fetch requires one if not GET/HEAD? Actually POST can have no body.
+          // Provide an empty body for POST to models endpoint if necessary, 
+          // but some endpoints might just need the method change.
+          // Usually /v1/models doesn't need a body, but fetch requires one if not GET/HEAD? Actually POST can have no body.
         }
         return await fetch(fetchUrl, options);
       };
@@ -673,7 +695,7 @@ export const fetchModels = async (provider, apiKeys = {}) => {
           const fallbackUrl = `${BACKUP_PROXY}${encodeURIComponent(targetUrl)}`;
           let fallbackRes = await tryFetch(fallbackUrl, "GET");
           if (!fallbackRes.ok) {
-             fallbackRes = await tryFetch(fallbackUrl, "POST");
+            fallbackRes = await tryFetch(fallbackUrl, "POST");
           }
           if (fallbackRes.ok) {
             return fallbackRes;
@@ -684,7 +706,7 @@ export const fetchModels = async (provider, apiKeys = {}) => {
     };
 
     const response = await fetchWithFallback(url, headers);
-    
+
     if (!response.ok) {
       return [];
     }
