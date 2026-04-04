@@ -7,10 +7,18 @@ import {
     ChevronLeft, Check, Copy, ExternalLink, Loader2, Eye, EyeOff, ChevronDown, ChevronRight, Undo, Zap, Wind, Cloud, CloudOff, Database, Calendar, Terminal, Tag, Pencil
 } from 'lucide-react';
 import AboutContent from './AboutContent';
-import { fetchModels as fetchModelsApi } from '../services/aiService';
+import { 
+    fetchModels as fetchModelsApi,
+    DEFAULT_OPENROUTER_MODEL,
+    DEFAULT_GROQ_MODEL,
+    DEFAULT_CEREBRAS_MODEL,
+    DEFAULT_MISTRAL_MODEL,
+    DEFAULT_NVIDIA_MODEL,
+    DEFAULT_GOOGLE_MODEL
+} from '../services/aiService';
 
 // API Key Input Constants
-const DEFAULT_MODEL = "tngtech/deepseek-r1t2-chimera:free";
+// Removed hardcoded DEFAULT_MODEL in favor of aiService.js constants
 
 export default function UserMenuContent({
     currentUser,
@@ -603,7 +611,7 @@ export default function UserMenuContent({
                                                 }
                                             }}
                                             onBlur={() => onRefreshModels(aiProvider)}
-                                            placeholder={aiProvider === 'groq' ? "gsk_..." : aiProvider === 'cerebras' ? "csk-..." : aiProvider === 'mistral' ? "Mistral API Key" : aiProvider === 'nvidia' ? "nvapi-..." : aiProvider === 'google' ? "Enter Google API Key..." : (customProviders.find(p => p.id === aiProvider) ? "Enter API Key..." : "sk-or-...")}
+                                            placeholder={aiProvider === 'groq' ? DEFAULT_GROQ_MODEL : aiProvider === 'cerebras' ? DEFAULT_CEREBRAS_MODEL : aiProvider === 'mistral' ? DEFAULT_MISTRAL_MODEL : aiProvider === 'nvidia' ? DEFAULT_NVIDIA_MODEL : aiProvider === 'google' ? DEFAULT_GOOGLE_MODEL : (customProviders.find(p => p.id === aiProvider) ? "Enter API Key..." : DEFAULT_OPENROUTER_MODEL)}
                                             className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 pr-12 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50 focus:bg-black/40 transition-all"
                                         />
                                         <button

@@ -13,12 +13,12 @@ const BACKUP_PROXY = "https://corsproxy.io/?url=";
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const NVIDIA_API_URL = isLocalhost ? "/api/nvidia/v1/chat/completions" : "https://anipickcors.hhhoutlook394.workers.dev/v1/chat/completions";
 
-const DEFAULT_OPENROUTER_MODEL = "openai/gpt-oss-120b:free";
-const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
-const DEFAULT_CEREBRAS_MODEL = "gpt-oss-120b";
-const DEFAULT_MISTRAL_MODEL = "mistral-large-latest";
-const DEFAULT_NVIDIA_MODEL = "google/gemma-4-31b-it";
-const DEFAULT_GOOGLE_MODEL = "models/gemini-3-flash-preview";
+export const DEFAULT_OPENROUTER_MODEL = "openai/gpt-oss-120b:free";
+export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
+export const DEFAULT_CEREBRAS_MODEL = "gpt-oss-120b";
+export const DEFAULT_MISTRAL_MODEL = "mistral-large-latest";
+export const DEFAULT_NVIDIA_MODEL = "google/gemma-4-31b-it";
+export const DEFAULT_GOOGLE_MODEL = "models/gemini-3-flash-preview";
 
 // Module-level model cache to avoid re-fetching
 let modelsCache = {};

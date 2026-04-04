@@ -9,7 +9,17 @@ import AuthModal from './components/AuthModal';
 import UserMenuContent from './components/UserMenuContent';
 import ExcludeModal from './components/ExcludeModal';
 import RefreshModeModal from './components/RefreshModeModal';
-import { getRecommendations, getAnimeInfo, fetchModels } from './services/aiService';
+import { 
+    getRecommendations, 
+    getAnimeInfo, 
+    fetchModels,
+    DEFAULT_OPENROUTER_MODEL,
+    DEFAULT_GROQ_MODEL,
+    DEFAULT_CEREBRAS_MODEL,
+    DEFAULT_MISTRAL_MODEL,
+    DEFAULT_NVIDIA_MODEL,
+    DEFAULT_GOOGLE_MODEL
+} from './services/aiService';
 import { getAnimeImage, searchAnime, getAnimeDetails } from './services/jikanService';
 import { enqueueEnrichmentJob, initializeEnrichmentQueue } from './services/enrichmentQueue';
 import {
@@ -70,23 +80,23 @@ function App() {
         const provider = localStorage.getItem('ai_provider') || 'openrouter';
         if (provider === 'groq') {
             const saved = localStorage.getItem('groq_model');
-            return saved ? saved : 'llama-3.3-70b-versatile';
+            return saved ? saved : DEFAULT_GROQ_MODEL;
         }
         if (provider === 'cerebras') {
             const saved = localStorage.getItem('cerebras_model');
-            return saved ? saved : 'gpt-oss-120b';
+            return saved ? saved : DEFAULT_CEREBRAS_MODEL;
         }
         if (provider === 'mistral') {
             const saved = localStorage.getItem('mistral_model');
-            return saved ? saved : 'mistral-large-latest';
+            return saved ? saved : DEFAULT_MISTRAL_MODEL;
         }
         if (provider === 'nvidia') {
             const saved = localStorage.getItem('nvidia_model');
-            return saved ? saved : 'meta/llama-3.3-70b-instruct';
+            return saved ? saved : DEFAULT_NVIDIA_MODEL;
         }
         if (provider === 'google') {
             const saved = localStorage.getItem('google_model');
-            return saved ? saved : 'gemini-3-flash';
+            return saved ? saved : DEFAULT_GOOGLE_MODEL;
         }
 
         // Handle custom providers
@@ -2890,17 +2900,17 @@ function App() {
                                     // Also update selectedModel to match the new provider
                                     let newModel = '';
                                     if (p === 'groq') {
-                                        newModel = localStorage.getItem('groq_model') || 'llama-3.3-70b-versatile';
+                                        newModel = localStorage.getItem('groq_model') || DEFAULT_GROQ_MODEL;
                                     } else if (p === 'cerebras') {
-                                        newModel = localStorage.getItem('cerebras_model') || 'gpt-oss-120b';
+                                        newModel = localStorage.getItem('cerebras_model') || DEFAULT_CEREBRAS_MODEL;
                                     } else if (p === 'mistral') {
-                                        newModel = localStorage.getItem('mistral_model') || 'mistral-large-latest';
+                                        newModel = localStorage.getItem('mistral_model') || DEFAULT_MISTRAL_MODEL;
                                     } else if (p === 'nvidia') {
-                                        newModel = localStorage.getItem('nvidia_model') || 'meta/llama-3.3-70b-instruct';
+                                        newModel = localStorage.getItem('nvidia_model') || DEFAULT_NVIDIA_MODEL;
                                     } else if (p === 'google') {
-                                        newModel = localStorage.getItem('google_model') || 'gemini-3-flash';
+                                        newModel = localStorage.getItem('google_model') || DEFAULT_GOOGLE_MODEL;
                                     } else if (p === 'openrouter') {
-                                        newModel = localStorage.getItem('openrouter_model') || 'tngtech/deepseek-r1t2-chimera:free';
+                                        newModel = localStorage.getItem('openrouter_model') || DEFAULT_OPENROUTER_MODEL;
                                     } else {
                                         // Custom providers
                                         const customs = JSON.parse(localStorage.getItem('custom_providers') || '[]');
