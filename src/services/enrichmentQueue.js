@@ -174,7 +174,19 @@ export const processQueue = async () => {
                 const { getUserInstructions } = await import('./authService');
 
                 // Get user's selected AI provider from localStorage
-                const aiProvider = localStorage.getItem('ai_provider') || 'openrouter';
+                let aiProvider = localStorage.getItem('ai_provider') || 'openrouter';
+                let modelOverride = null;
+
+                // Check if utility AI is enabled
+                const taskAiEnabled = localStorage.getItem('task_ai_enabled') === 'true';
+                if (taskAiEnabled) {
+                    const taskAiProvider = localStorage.getItem('task_ai_provider');
+                    if (taskAiProvider) {
+                        aiProvider = taskAiProvider;
+                        modelOverride = localStorage.getItem(`task_${taskAiProvider}_model`);
+                    }
+                }
+
                 const apiKey = localStorage.getItem(`${aiProvider}_api_key`) || '';
 
                 // Get custom instructions for the current user, filtered to [ALWAYS] instructions
@@ -185,8 +197,8 @@ export const processQueue = async () => {
                 );
 
                 if (apiKey) {
-                    // Pass null for model to use provider's default model
-                    const aiData = await getAnimeInfo(job.title, apiKey, aiProvider, alwaysInstructions, null);
+                    // Use modelOverride if utility AI is enabled, otherwise null for default model
+                    const aiData = await getAnimeInfo(job.title, apiKey, aiProvider, alwaysInstructions, modelOverride);
 
                     const hasAiDemographics = aiData?.demographics && aiData.demographics.length > 0;
                     const hasAiGenres = aiData?.genres && aiData.genres.length > 0;

@@ -84,12 +84,24 @@ export default function UserMenuContent({
     models = [],
     allProvidersModels = {},
     onRefreshModels,
-    isModelsLoading = false,
+    isModelsLoading = {},
     initialView = 'main',
     customProviders = [],
-    setCustomProviders = () => { }
+    setCustomProviders = () => { },
+    taskAiEnabled = false,
+    setTaskAiEnabled = () => { },
+    taskAiProvider = 'cerebras',
+    setTaskAiProvider = () => { },
+    taskSelectedModel = '',
+    setTaskSelectedModel = () => { }
 }) {
-    const [currentView, setCurrentView] = useState(initialView); // 'main', 'about', 'api', 'api_providers', 'api_models', 'api_custom_edit', 'instructions', 'regen', 'regen_options', 'excluded', 'effects', 'cloud', 'destruction', 'data_backup', 'console'
+    const [currentView, setCurrentView] = useState(initialView); // 'main', 'about', 'api', 'api_providers', 'api_models', 'api_custom_edit', 'instructions', 'regen', 'regen_options', 'excluded', 'effects', 'cloud', 'destruction', 'data_backup', 'console', 'api_utility'
+    const [selectionContext, setSelectionContext] = useState('primary'); // 'primary' or 'utility'
+
+    const activeProvider = selectionContext === 'utility' ? taskAiProvider : aiProvider;
+    const activeModels = (allProvidersModels[activeProvider] || []) || [];
+    const activeSelectedModel = selectionContext === 'utility' ? taskSelectedModel : selectedModel;
+    const isModelsLoadingActive = isModelsLoading[activeProvider] || false;
     const [regenTarget, setRegenTarget] = useState('watchlist'); // 'watchlist' or 'library'
     const [regenMode, setRegenMode] = useState('missing'); // 'all' or 'missing'
 
@@ -150,11 +162,11 @@ export default function UserMenuContent({
 
     // Scroll selected model into view within the list when it opens
     useEffect(() => {
-        if (currentView === 'api_models' && selectedModel && modelListRef.current && apiModelsAnimationDone && !isModelsLoading && models.length > 0) {
+        if (currentView === 'api_models' && activeSelectedModel && modelListRef.current && apiModelsAnimationDone && !isModelsLoadingActive && activeModels.length > 0) {
             const container = modelListRef.current;
             let attempts = 0;
             const scrollInterval = setInterval(() => {
-                const selectedElement = container.querySelector(`[data-model-id="${selectedModel}"]`);
+                const selectedElement = container.querySelector(`[data-model-id="${activeSelectedModel}"]`);
                 if (selectedElement) {
                     selectedElement.scrollIntoView({ block: 'center', behavior: 'smooth' });
                     attempts++;
@@ -170,7 +182,7 @@ export default function UserMenuContent({
         } else if (currentView !== 'api_models') {
             setApiModelsAnimationDone(false);
         }
-    }, [currentView, selectedModel, isModelsLoading, models, apiModelsAnimationDone]);
+    }, [currentView, activeSelectedModel, isModelsLoadingActive, activeModels, apiModelsAnimationDone]);
 
     // Helper: get the effective max output tokens for the selected model
     // maxCompletionTokens = actual max output tokens (from API if available)
@@ -225,24 +237,41 @@ export default function UserMenuContent({
     // This is handled via onBlur on the inputs below.
 
     const handleModelSelect = (modelId) => {
-        setSelectedModel(modelId);
-        if (aiProvider === 'groq') localStorage.setItem('groq_model', modelId);
-        else if (aiProvider === 'cerebras') localStorage.setItem('cerebras_model', modelId);
-        else if (aiProvider === 'mistral') localStorage.setItem('mistral_model', modelId);
-        else if (aiProvider === 'openrouter') localStorage.setItem('openrouter_model', modelId);
-        else if (aiProvider === 'nvidia') localStorage.setItem('nvidia_model', modelId);
-        else if (aiProvider === 'google') localStorage.setItem('google_model', modelId);
-        else {
-            // Update custom provider model
-            const newCustoms = customProviders.map(p =>
-                p.id === aiProvider ? { ...p, model: modelId } : p
-            );
-            setCustomProviders(newCustoms);
+        if (selectionContext === 'utility') {
+            setTaskSelectedModel(modelId);
+            const provider = taskAiProvider;
+            if (provider === 'groq') localStorage.setItem('task_groq_model', modelId);
+            else if (provider === 'cerebras') localStorage.setItem('task_cerebras_model', modelId);
+            else if (provider === 'mistral') localStorage.setItem('task_mistral_model', modelId);
+            else if (provider === 'openrouter') localStorage.setItem('task_openrouter_model', modelId);
+            else if (provider === 'nvidia') localStorage.setItem('task_nvidia_model', modelId);
+            else if (provider === 'google') localStorage.setItem('task_google_model', modelId);
+            else {
+                const newCustoms = customProviders.map(p =>
+                    p.id === provider ? { ...p, model: modelId } : p
+                );
+                setCustomProviders(newCustoms);
+            }
+            setCurrentView('api_utility');
+        } else {
+            setSelectedModel(modelId);
+            if (aiProvider === 'groq') localStorage.setItem('groq_model', modelId);
+            else if (aiProvider === 'cerebras') localStorage.setItem('cerebras_model', modelId);
+            else if (aiProvider === 'mistral') localStorage.setItem('mistral_model', modelId);
+            else if (aiProvider === 'openrouter') localStorage.setItem('openrouter_model', modelId);
+            else if (aiProvider === 'nvidia') localStorage.setItem('nvidia_model', modelId);
+            else if (aiProvider === 'google') localStorage.setItem('google_model', modelId);
+            else {
+                const newCustoms = customProviders.map(p =>
+                    p.id === aiProvider ? { ...p, model: modelId } : p
+                );
+                setCustomProviders(newCustoms);
+            }
+            setCurrentView('api');
         }
-        setCurrentView('api');
     };
 
-    const filteredModels = models.filter(m => {
+    const filteredModels = activeModels.filter(m => {
         const matches = m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             m.id.toLowerCase().includes(searchQuery.toLowerCase());
         return matches;
@@ -540,7 +569,10 @@ export default function UserMenuContent({
                                         <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Active Provider</label>
                                     </div>
                                     <button
-                                        onClick={() => setCurrentView('api_providers')}
+                                        onClick={() => {
+                                            setSelectionContext('primary');
+                                            setCurrentView('api_providers');
+                                        }}
                                         className="flex items-center justify-between w-full p-3 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20 transition-all group"
                                     >
                                         <div className="flex items-center gap-3">
@@ -625,24 +657,55 @@ export default function UserMenuContent({
 
                                 {/* Model Selector */}
                                 <div className="space-y-3">
-                                    <div className="flex items-center justify-between ml-1">
-                                        <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Model Selection</label>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            setCurrentView('api_models');
-                                            onRefreshModels(aiProvider);
-                                        }}
-                                        className="flex items-center justify-between w-full p-3 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20 transition-all group text-left"
-                                    >
-                                        <span className="truncate flex-1 text-sm font-medium text-gray-300 group-hover:text-white transition-colors">
-                                            {models.find(m => m.id === selectedModel)?.name || selectedModel}
-                                        </span>
-                                        <ChevronRight size={16} className="text-gray-600 group-hover:text-violet-400 transition-colors" />
-                                    </button>
-                                </div>
+                                   <div className="flex items-center justify-between ml-1">
+                                       <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Model Selection</label>
+                                   </div>
+                                   <button
+                                       onClick={() => {
+                                           setSelectionContext('primary');
+                                           setCurrentView('api_models');
+                                           onRefreshModels(aiProvider);
+                                       }}
+                                       className="flex items-center justify-between w-full p-3 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20 transition-all group text-left"
+                                   >
+                                       <span className="truncate flex-1 text-sm font-medium text-gray-300 group-hover:text-white transition-colors">
+                                           {activeModels.find(m => m.id === selectedModel)?.name || selectedModel}
+                                       </span>
+                                       <ChevronRight size={16} className="text-gray-600 group-hover:text-violet-400 transition-colors" />
+                                   </button>
+                                   </div>
 
-                                <div className="space-y-4 pt-4 border-t border-white/5">
+                                   {/* Utility Model Settings Link */}
+                                   <div className="space-y-3">
+                                   <div className="flex items-center justify-between ml-1">
+                                      <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Advanced</label>
+                                   </div>
+                                   <button
+                                      onClick={() => {
+                                          setSelectionContext('primary');
+                                          setCurrentView('api_utility');
+                                      }}
+                                      className="flex items-center justify-between w-full p-4 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20 transition-all group"
+                                   >
+                                      <div className="flex items-center gap-3">
+                                          <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 group-hover:bg-amber-500/20 transition-colors">
+                                              <Zap size={16} />
+                                          </div>
+                                          <div className="text-left">
+                                              <p className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors">Utility Model Settings</p>
+                                              <p className="text-[10px] text-gray-500 font-medium">Configure separate model for tag enrichment</p>
+                                          </div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                          {taskAiEnabled && (
+                                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">ENABLED</span>
+                                          )}
+                                          <ChevronRight size={16} className="text-gray-600 group-hover:text-violet-400 transition-colors" />
+                                      </div>
+                                   </button>
+                                   </div>
+
+                                   <div className="space-y-4 pt-4 border-t border-white/5">
                                     <div className="flex items-center justify-between ml-1">
                                         <div className="flex items-center gap-2">
                                             <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Max Tokens</label>
@@ -708,6 +771,100 @@ export default function UserMenuContent({
                 }
 
                 {
+                    currentView === 'api_utility' && (
+                        <motion.div
+                            key="api_utility"
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            variants={subViewVariants}
+                            className="flex flex-col h-full"
+                        >
+                            <MenuHeader title="Utility Model Settings" onBack={() => setCurrentView('api')} />
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+                                {/* Feature Toggle */}
+                                <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
+                                    <div className="flex flex-col gap-0.5">
+                                        <label className="text-xs font-bold text-white uppercase tracking-wider">Use for Utility Tasks</label>
+                                        <p className="text-[10px] text-gray-500">Enable to use a separate model for tag enrichment</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setTaskAiEnabled(!taskAiEnabled)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${taskAiEnabled ? 'bg-amber-600' : 'bg-white/10'
+                                            }`}
+                                    >
+                                        <span
+                                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${taskAiEnabled ? 'translate-x-6' : 'translate-x-1'
+                                                }`}
+                                        />
+                                    </button>
+                                </div>
+
+                                {taskAiEnabled && (
+                                    <>
+                                        {/* Utility Provider Switcher */}
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between ml-1">
+                                                <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Utility Provider</label>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectionContext('utility');
+                                                    setCurrentView('api_providers');
+                                                }}
+                                                className="flex items-center justify-between w-full p-3 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20 transition-all group"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
+                                                        <Cloud size={16} />
+                                                    </div>
+                                                    <div className="text-left">
+                                                        <p className="text-sm font-bold text-white">
+                                                            {[
+                                                                { id: 'cerebras', name: 'Cerebras' },
+                                                                { id: 'openrouter', name: 'OpenRouter' },
+                                                                { id: 'groq', name: 'Groq' },
+                                                                { id: 'mistral', name: 'Mistral' },
+                                                                { id: 'nvidia', name: 'Nvidia NIM' },
+                                                                { id: 'google', name: 'Google AI Studio' }
+                                                            ].find(p => p.id === taskAiProvider)?.name ||
+                                                                customProviders.find(p => p.id === taskAiProvider)?.name ||
+                                                                taskAiProvider}
+                                                        </p>
+                                                        <p className="text-xs text-gray-500 font-medium">Click to switch</p>
+                                                    </div>
+                                                </div>
+                                                <ChevronRight size={16} className="text-gray-600 group-hover:text-amber-400 transition-colors" />
+                                            </button>
+                                        </div>
+
+                                        {/* Utility Model Selector */}
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between ml-1">
+                                                <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Utility Model Selection</label>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectionContext('utility');
+                                                    setCurrentView('api_models');
+                                                    onRefreshModels(taskAiProvider);
+                                                }}
+                                                className="flex items-center justify-between w-full p-3 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20 transition-all group text-left"
+                                            >
+                                                <span className="truncate flex-1 text-sm font-medium text-gray-300 group-hover:text-white transition-colors">
+                                                    {(allProvidersModels[taskAiProvider] || []).find(m => m.id === taskSelectedModel)?.name || taskSelectedModel}
+                                                </span>
+                                                <ChevronRight size={16} className="text-gray-600 group-hover:text-amber-400 transition-colors" />
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </motion.div>
+                    )
+                }
+
+                {
                     currentView === 'api_providers' && (
                         <motion.div
                             key="api_providers"
@@ -717,7 +874,7 @@ export default function UserMenuContent({
                             variants={subViewVariants}
                             className="flex flex-col h-full"
                         >
-                            <MenuHeader title="Switch Provider" onBack={() => setCurrentView('api')} />
+                            <MenuHeader title={selectionContext === 'utility' ? "Utility Provider" : "Switch Provider"} onBack={() => setCurrentView(selectionContext === 'utility' ? 'api_utility' : 'api')} />
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
                                 {/* Hardcoded Providers */}
                                 <div className="space-y-3">
@@ -734,19 +891,24 @@ export default function UserMenuContent({
                                             <button
                                                 key={provider.id}
                                                 onClick={() => {
-                                                    setAiProvider(provider.id);
-                                                    setCurrentView('api');
+                                                    if (selectionContext === 'utility') {
+                                                        setTaskAiProvider(provider.id);
+                                                        setCurrentView('api_utility');
+                                                    } else {
+                                                        setAiProvider(provider.id);
+                                                        setCurrentView('api');
+                                                    }
                                                     onRefreshModels(provider.id);
                                                 }}
-                                                className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${aiProvider === provider.id
+                                                className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${activeProvider === provider.id
                                                     ? 'bg-violet-600/10 border-violet-500/50'
                                                     : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20'
                                                     }`}
                                             >
                                                 <div className="flex-shrink-0 w-5 flex justify-center">
-                                                    {aiProvider === provider.id && <Check size={16} className="text-violet-400" />}
+                                                    {activeProvider === provider.id && <Check size={16} className="text-violet-400" />}
                                                 </div>
-                                                <span className={`text-sm font-bold ${aiProvider === provider.id ? 'text-white' : 'text-gray-400 group-hover:text-gray-300'}`}>{provider.name}</span>
+                                                <span className={`text-sm font-bold ${activeProvider === provider.id ? 'text-white' : 'text-gray-400 group-hover:text-gray-300'}`}>{provider.name}</span>
                                             </button>
                                         ))}
                                     </div>
@@ -777,24 +939,29 @@ export default function UserMenuContent({
                                             customProviders.map(provider => (
                                                 <div
                                                     key={provider.id}
-                                                    className={`group relative flex items-center p-3 rounded-xl border transition-all ${aiProvider === provider.id
+                                                    className={`group relative flex items-center p-3 rounded-xl border transition-all ${activeProvider === provider.id
                                                         ? 'bg-violet-600/10 border-violet-500/50'
                                                         : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
                                                         }`}
                                                 >
                                                     <div className="flex-1 flex items-center gap-3 min-w-0">
                                                         <div className="flex-shrink-0 w-5 flex justify-center">
-                                                            {aiProvider === provider.id && <Check size={16} className="text-violet-400" />}
+                                                            {activeProvider === provider.id && <Check size={16} className="text-violet-400" />}
                                                         </div>
                                                         <button
                                                             onClick={() => {
-                                                                setAiProvider(provider.id);
-                                                                setCurrentView('api');
+                                                                if (selectionContext === 'utility') {
+                                                                    setTaskAiProvider(provider.id);
+                                                                    setCurrentView('api_utility');
+                                                                } else {
+                                                                    setAiProvider(provider.id);
+                                                                    setCurrentView('api');
+                                                                }
                                                                 onRefreshModels(provider.id);
                                                             }}
                                                             className="flex-1 text-left min-w-0"
                                                         >
-                                                            <span className={`text-sm font-bold block truncate ${aiProvider === provider.id ? 'text-white' : 'text-gray-400 group-hover:text-gray-300'}`}>
+                                                            <span className={`text-sm font-bold block truncate ${activeProvider === provider.id ? 'text-white' : 'text-gray-400 group-hover:text-gray-300'}`}>
                                                                 {provider.name}
                                                             </span>
                                                             <p className="text-[10px] text-gray-500 truncate">{provider.baseUrl}</p>
@@ -831,7 +998,7 @@ export default function UserMenuContent({
                             variants={subViewVariants}
                             className="flex flex-col h-full"
                         >
-                            <MenuHeader title="Model Selection" onBack={() => setCurrentView('api')} />
+                            <MenuHeader title={selectionContext === 'utility' ? "Utility Model" : "Model Selection"} onBack={() => setCurrentView(selectionContext === 'utility' ? 'api_utility' : 'api')} />
                             <div ref={modelListRef} className="flex-1 overflow-y-auto custom-scrollbar px-6" style={{ scrollbarGutter: 'stable both-edges' }}>
                                 <div className="sticky top-0 z-10 bg-[#1a1a2e] pt-6 pb-2">
                                     <div className="relative">
@@ -846,7 +1013,7 @@ export default function UserMenuContent({
                                     </div>
                                 </div>
                                 <div className="space-y-1 pb-6 pt-2">
-                                    {isModelsLoading ? (
+                                    {isModelsLoadingActive ? (
                                             <div className="flex items-center justify-center py-8">
                                                 <Loader2 size={24} className="animate-spin text-violet-400" />
                                             </div>
@@ -862,7 +1029,7 @@ export default function UserMenuContent({
                                                     key={model.id}
                                                     data-model-id={model.id}
                                                     onClick={() => handleModelSelect(model.id)}
-                                                    className={`w-full text-left px-4 py-3 rounded-xl transition-all border ${selectedModel === model.id
+                                                    className={`w-full text-left px-4 py-3 rounded-xl transition-all border ${activeSelectedModel === model.id
                                                         ? 'bg-violet-600/10 text-white border-violet-500/50'
                                                         : 'text-gray-300 bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20'
                                                         }`}

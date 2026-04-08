@@ -113,8 +113,39 @@ function App() {
             }
         }
 
-        return localStorage.getItem('openrouter_model') || 'tngtech/deepseek-r1t2-chimera:free';
+        return localStorage.getItem('openrouter_model') || DEFAULT_OPENROUTER_MODEL;
     });
+    const [taskAiEnabled, setTaskAiEnabled] = useState(localStorage.getItem('task_ai_enabled') === 'true');
+    const [taskAiProvider, setTaskAiProvider] = useState(() => localStorage.getItem('task_ai_provider') || '');
+    const [taskSelectedModel, setTaskSelectedModel] = useState(() => localStorage.getItem('task_selected_model') || '');
+
+    const effectiveTaskAiProvider = taskAiProvider || aiProvider;
+    
+    // Helper to get task model with proper fallback
+    const getTaskSelectedModel = useCallback(() => {
+        if (taskSelectedModel) return taskSelectedModel;
+        
+        const p = effectiveTaskAiProvider;
+        if (p === 'groq') return localStorage.getItem('task_groq_model') || DEFAULT_GROQ_MODEL;
+        if (p === 'cerebras') return localStorage.getItem('task_cerebras_model') || DEFAULT_CEREBRAS_MODEL;
+        if (p === 'mistral') return localStorage.getItem('task_mistral_model') || DEFAULT_MISTRAL_MODEL;
+        if (p === 'nvidia') return localStorage.getItem('task_nvidia_model') || DEFAULT_NVIDIA_MODEL;
+        if (p === 'google') return localStorage.getItem('task_google_model') || DEFAULT_GOOGLE_MODEL;
+        
+        const customsRaw = localStorage.getItem('custom_providers');
+        if (customsRaw) {
+            try {
+                const customs = JSON.parse(customsRaw);
+                const current = customs.find(c => c.id === p);
+                if (current && current.model) return current.model;
+            } catch (e) {}
+        }
+        
+        return localStorage.getItem('task_openrouter_model') || DEFAULT_OPENROUTER_MODEL;
+    }, [taskSelectedModel, effectiveTaskAiProvider]);
+
+    const effectiveTaskSelectedModel = getTaskSelectedModel();
+
     const [currentUser, setCurrentUser] = useState(() => getStoredUser());
     const [library, setLibrary] = useState(() => {
         const user = getStoredUser();
@@ -462,6 +493,27 @@ function App() {
             markLocalChange('customProviders');
         }
     }, [customProviders, currentUser, markLocalChange]);
+
+    useEffect(() => {
+        localStorage.setItem('task_ai_enabled', taskAiEnabled ? 'true' : 'false');
+    }, [taskAiEnabled]);
+
+    useEffect(() => {
+        if (taskAiProvider) {
+            localStorage.setItem('task_ai_provider', taskAiProvider);
+        }
+    }, [taskAiProvider]);
+
+    useEffect(() => {
+        if (taskSelectedModel && taskAiProvider) {
+            if (taskAiProvider === 'openrouter') localStorage.setItem('task_openrouter_model', taskSelectedModel);
+            else if (taskAiProvider === 'groq') localStorage.setItem('task_groq_model', taskSelectedModel);
+            else if (taskAiProvider === 'cerebras') localStorage.setItem('task_cerebras_model', taskSelectedModel);
+            else if (taskAiProvider === 'mistral') localStorage.setItem('task_mistral_model', taskSelectedModel);
+            else if (taskAiProvider === 'nvidia') localStorage.setItem('task_nvidia_model', taskSelectedModel);
+            else if (taskAiProvider === 'google') localStorage.setItem('task_google_model', taskSelectedModel);
+        }
+    }, [taskSelectedModel, taskAiProvider]);
 
     useEffect(() => {
         if (currentUser) {
@@ -1337,7 +1389,34 @@ function App() {
         setLoadingItems(prev => Array.isArray(prev) ? [...prev, title] : [title]);
 
         try {
-            const data = await getAnimeInfo(title, getCurrentApiKey(), aiProvider, alwaysInstructions, selectedModel, mode);
+            let effectiveProvider = aiProvider;
+            let effectiveApiKey = getCurrentApiKey();
+            let effectiveModel = selectedModel;
+
+            if (mode === 'genres' && taskAiEnabled) {
+                effectiveProvider = effectiveTaskAiProvider;
+                // Get key for taskAiProvider
+                if (effectiveProvider === 'groq') effectiveApiKey = groqApiKey;
+                else if (effectiveProvider === 'cerebras') effectiveApiKey = cerebrasApiKey;
+                else if (effectiveProvider === 'mistral') effectiveApiKey = mistralApiKey;
+                else if (effectiveProvider === 'nvidia') effectiveApiKey = nvidiaApiKey;
+                else if (effectiveProvider === 'google') effectiveApiKey = googleApiKey;
+                else if (effectiveProvider === 'openrouter') effectiveApiKey = apiKey;
+                else {
+                    const custom = customProviders.find(p => p.id === effectiveProvider);
+                    if (custom) effectiveApiKey = custom.apiKey;
+                    else effectiveApiKey = apiKey;
+                }
+                effectiveModel = effectiveTaskSelectedModel;
+            }
+
+            if (!effectiveApiKey && effectiveProvider !== 'openrouter' && !effectiveProvider.startsWith('custom-')) {
+                toast.error(`Please enter an API Key for ${effectiveProvider} first.`);
+                setLoadingItems(prev => Array.isArray(prev) ? prev.filter(t => t !== title) : []);
+                return;
+            }
+
+            const data = await getAnimeInfo(title, effectiveApiKey, effectiveProvider, alwaysInstructions, effectiveModel, mode);
 
             // Create the new item object based on mode
             let newItem;
@@ -2972,9 +3051,38 @@ function App() {
                                 models={allProvidersModels[aiProvider]}
                                 allProvidersModels={allProvidersModels}
                                 onRefreshModels={handleRefreshModels}
-                                isModelsLoading={isLoadingModels[aiProvider]}
+                                isModelsLoading={isLoadingModels}
                                 customProviders={customProviders}
                                 setCustomProviders={setCustomProviders}
+                                taskAiEnabled={taskAiEnabled}
+                                setTaskAiEnabled={(enabled) => {
+                                    setTaskAiEnabled(enabled);
+                                    localStorage.setItem('task_ai_enabled', enabled ? 'true' : 'false');
+                                }}
+                                taskAiProvider={effectiveTaskAiProvider}
+                                setTaskAiProvider={(p) => {
+                                    setTaskAiProvider(p);
+                                    localStorage.setItem('task_ai_provider', p);
+                                    
+                                    let newModel = '';
+                                    if (p === 'groq') newModel = localStorage.getItem('task_groq_model') || DEFAULT_GROQ_MODEL;
+                                    else if (p === 'cerebras') newModel = localStorage.getItem('task_cerebras_model') || DEFAULT_CEREBRAS_MODEL;
+                                    else if (p === 'mistral') newModel = localStorage.getItem('task_mistral_model') || DEFAULT_MISTRAL_MODEL;
+                                    else if (p === 'nvidia') newModel = localStorage.getItem('task_nvidia_model') || DEFAULT_NVIDIA_MODEL;
+                                    else if (p === 'google') newModel = localStorage.getItem('task_google_model') || DEFAULT_GOOGLE_MODEL;
+                                    else if (p === 'openrouter') newModel = localStorage.getItem('task_openrouter_model') || DEFAULT_OPENROUTER_MODEL;
+                                    else {
+                                        const customs = JSON.parse(localStorage.getItem('custom_providers') || '[]');
+                                        const current = customs.find(c => c.id === p);
+                                        if (current && current.model) newModel = current.model;
+                                    }
+                                    if (newModel) setTaskSelectedModel(newModel);
+                                }}
+                                taskSelectedModel={effectiveTaskSelectedModel}
+                                setTaskSelectedModel={(m) => {
+                                    setTaskSelectedModel(m);
+                                    localStorage.setItem('task_selected_model', m);
+                                }}
                             />
                         </motion.div>
                     </div>
