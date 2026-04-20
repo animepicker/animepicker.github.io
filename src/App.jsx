@@ -979,11 +979,6 @@ function App() {
             console.error("GOOGLE SIGN-IN ERROR:", error);
             const errorMsg = error.message || "Failed to sign in with Google";
             toast.error(errorMsg);
-
-            // If it was a timeout, the user might need to know about popups
-            if (errorMsg.includes("popup")) {
-                toast.info("Tip: Look for the popup blocked icon in your browser's address bar.", { duration: 5000 });
-            }
         } finally {
             console.log('STEP FINAL: Sign-in flow ended, clearing loading state');
             setIsGoogleLoading(false);
@@ -1013,11 +1008,6 @@ function App() {
             console.error("Link Account Error:", error);
             const errorMsg = error.message || "Failed to connect to Google Drive";
             toast.error(errorMsg);
-
-            // If it was a timeout, the user might need to know about popups
-            if (errorMsg.includes("popup")) {
-                toast.info("Tip: Look for the popup blocked icon in your browser's address bar.", { duration: 5000 });
-            }
         } finally {
             setIsGoogleLoading(false);
         }
@@ -1025,6 +1015,7 @@ function App() {
 
     const handleCancelGoogleSignIn = () => {
         setIsGoogleLoading(false);
+        setIsGoogleReconnecting(false);
         toast.info("Sign-in cancelled");
     };
 

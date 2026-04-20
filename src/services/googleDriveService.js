@@ -78,12 +78,17 @@ export const initGis = async () => {
         return new Promise((resolve) => {
             if (!CLIENT_ID) {
                 console.error('VITE_GOOGLE_CLIENT_ID is missing from .env');
-                return resolve(); // Resolve anyway so we don't hang, but handle in getToken
+                return resolve(); 
             }
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID,
                 scope: SCOPES,
-                callback: '', // defined at request time
+                callback: (resp) => {
+                    if (window.__gisCallback) window.__gisCallback(resp);
+                },
+                error_callback: (err) => {
+                    if (window.__gisErrorCallback) window.__gisErrorCallback(err);
+                }
             });
             gisInited = true;
             resolve();
@@ -144,20 +149,20 @@ export const getToken = (username, hint = null, silent = false, forceSelect = fa
 
         // Safety timeout: If Google doesn't call back, reject to prevent hanging.
         // We use a shorter timeout for silent requests since they should be near-instant.
-        const timeoutDuration = silent ? 10000 : 60000;
+        const timeoutDuration = silent ? 10000 : 30000;
         const timeoutId = setTimeout(() => {
             if (!hasResolved) {
                 hasResolved = true;
                 console.error(`getToken: Request timed out after ${timeoutDuration/1000} seconds.`);
                 const msg = silent 
                     ? 'Silent sign-in timed out.' 
-                    : 'Sign-in request timed out. Please check if the popup was blocked by your browser.';
+                    : 'Sign-in request timed out. If you closed the popup, this is expected. Otherwise, please check for blocked popups.';
                 reject(new Error(msg));
             }
         }, timeoutDuration);
 
         try {
-            tokenClient.callback = async (resp) => {
+            window.__gisCallback = async (resp) => {
                 if (hasResolved) return; // Already timed out
                 hasResolved = true;
                 clearTimeout(timeoutId);
@@ -207,13 +212,25 @@ export const getToken = (username, hint = null, silent = false, forceSelect = fa
                 }
             };
 
+            window.__gisErrorCallback = (err) => {
+                if (hasResolved) return;
+                hasResolved = true;
+                clearTimeout(timeoutId);
+                console.error('GIS Error Callback Received:', err);
+                if (err?.type === 'popup_failed_to_open') {
+                    reject(new Error('Sign-in cancelled: popup was blocked by the browser. Please allow popups for this site.'));
+                } else if (err?.type === 'popup_closed') {
+                    reject(new Error('Sign-in cancelled: popup was closed.'));
+                } else {
+                    reject(new Error('Google Sign-in failed: ' + (err?.type || 'Unknown error')));
+                }
+            };
+
             const options = {};
             if (silent) {
                 options.prompt = 'none';
             } else if (forceSelect) {
                 options.prompt = 'select_account';
-            } else {
-                options.prompt = '';
             }
 
             if (hint) {
