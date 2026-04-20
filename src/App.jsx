@@ -61,7 +61,7 @@ const getSafeTitle = (item) => {
 };
 
 import { Toaster, toast } from 'sonner';
-import { LogOut, User, LayoutGrid, Sparkles, ArrowUp, ArrowDown, Plus, X, Play, Search, Info, Key, Download, Upload, RefreshCw, Heart, Trash2, ChevronUp, Check } from 'lucide-react';
+import { LogOut, User, LayoutGrid, Sparkles, ArrowUp, ArrowDown, Plus, X, Play, Search, Info, Key, Download, Upload, RefreshCw, Heart, Trash2, ChevronUp, Check, AlertCircle } from 'lucide-react';
 
 const DEMOGRAPHIC_DEFAULT_INSTRUCTION = "[ALWAYS] IMPORTANT: Analyze the anime's demographic (Shonen, Seinen, Shojo, Josei, Kodomomuke). You MUST include the identified demographic as a string in the \"genres\" array.";
 const RECOMMENDATION_DEFAULT_INSTRUCTION = "Identify the most common demographics (e.g., Seinen, Josei, Shonen, Shoujo) in my library and prioritize new recommendations that match them.";
@@ -426,6 +426,9 @@ function App() {
     // Google Sync State
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [isGoogleSignedIn, setIsGoogleSignedIn] = useState(false);
+    const [isGoogleReconnecting, setIsGoogleReconnecting] = useState(false);
+    const [showSessionExpiredBanner, setShowSessionExpiredBanner] = useState(false);
+    const tokenExpiryTimerRef = useRef(null);
     const [lastCloudSync, setLastCloudSync] = useState(null);
 
     // Apply blur settings to body
@@ -859,21 +862,48 @@ function App() {
 
             // Only attempt silent re-auth if they are a Google user or have explicitly connected before
             if (currentUser.isGoogle || hasStoredToken) {
+                setIsGoogleReconnecting(true);
                 ensureSubsystems().then(() => {
-                    getToken(username, hint, true).then(token => {
-                        if (token && !hasAutoSynced) {
-                            setHasAutoSynced(true);
-                            setIsGoogleSignedIn(true);
-                            setLastCloudSync(localStorage.getItem(`${username}_last_cloud_sync`) || null);
-                            // CRITICAL: Pass currentUser directly AND forceCloud=true to stop resurrection
-                            handleCloudSync(false, currentUser, true);
+                    getToken(username, hint, true).then(result => {
+                        setIsGoogleReconnecting(false);
+                        if (result && result.token) {
+                            if (!hasAutoSynced) {
+                                setHasAutoSynced(true);
+                                setIsGoogleSignedIn(true);
+                                setShowSessionExpiredBanner(false);
+                                scheduleTokenExpiryCheck(username, hint);
+                                setLastCloudSync(localStorage.getItem(`${username}_last_cloud_sync`) || null);
+                                // CRITICAL: Pass currentUser directly AND forceCloud=true to stop resurrection
+                                handleCloudSync(false, currentUser, true);
+                            }
+                        } else if (currentUser.isGoogle) {
+                            // Silent re-auth failed for a Google-native user
+                            setIsGoogleSignedIn(false);
+                            // Only show banner if we actually have a record of a previous successful login
+                            if (hasStoredToken) {
+                                setShowSessionExpiredBanner(true);
+                            }
                         }
                     }).catch((err) => {
                         console.warn('Initial silent Google re-auth failed or not available for user.');
+                        setIsGoogleReconnecting(false);
+                        if (currentUser.isGoogle) {
+                            setIsGoogleSignedIn(false);
+                            if (hasStoredToken) {
+                                setShowSessionExpiredBanner(true);
+                            }
+                        }
                     });
                 });
             }
         }
+
+        return () => {
+            if (tokenExpiryTimerRef.current) {
+                clearTimeout(tokenExpiryTimerRef.current);
+                tokenExpiryTimerRef.current = null;
+            }
+        };
     }, [currentUser]);
 
     // Scroll listener for back to top button only
@@ -904,9 +934,10 @@ function App() {
             await ensureSubsystems();
 
             console.log('STEP 3: Requesting token from GIS');
-            const token = await getToken('temp_login', null, false, true);
+            const result = await getToken('temp_login', null, false, true);
 
-            if (token) {
+            if (result && result.token) {
+                const { token, expiresAt } = result;
                 console.log('STEP 4: Token acquired, fetching user profile');
                 const profile = await getUserProfile();
 
@@ -918,11 +949,13 @@ function App() {
 
                     // CRITICAL: Re-save the token under the REAL username so startup re-auth works
                     const userTokenKey = `${user.username}_google_drive_persistent_token`;
-                    const expiresAt = Date.now() + 3600000; // Default 1 hour
                     localStorage.setItem(userTokenKey, JSON.stringify({
-                        token: token,
+                        token,
                         expiresAt
                     }));
+
+                    scheduleTokenExpiryCheck(user.username, profile.email);
+                    setShowSessionExpiredBanner(false);
 
                     setLastCloudSync(localStorage.getItem(`${user.username}_last_cloud_sync`) || null);
                     toast.success(`Welcome, ${profile.name || profile.email}!`);
@@ -958,11 +991,13 @@ function App() {
 
         try {
             await ensureSubsystems();
-            const token = await getToken(currentUser.username, null, false, true);
-            if (token) {
+            const result = await getToken(currentUser.username, null, false, true);
+            if (result && result.token) {
                 // Pure isolation: We don't link the identity in authService.
                 // We just mark as signed in for this session.
                 setIsGoogleSignedIn(true);
+                scheduleTokenExpiryCheck(currentUser.username, currentUser.isGoogle ? currentUser.profile?.email : null);
+                setShowSessionExpiredBanner(false);
                 toast.success("Connected to Google Drive successfully!");
                 // Initial upload/sync (silent)
                 handleCloudSync(false);
@@ -985,7 +1020,82 @@ function App() {
         googleLogout(username);
         setIsGoogleSignedIn(false);
         setLastCloudSync(null);
+        if (tokenExpiryTimerRef.current) {
+            clearTimeout(tokenExpiryTimerRef.current);
+            tokenExpiryTimerRef.current = null;
+        }
         toast.info("Signed out from Google Drive");
+    };
+
+    const scheduleTokenExpiryCheck = useCallback((username, hint) => {
+        if (tokenExpiryTimerRef.current) {
+            clearTimeout(tokenExpiryTimerRef.current);
+            tokenExpiryTimerRef.current = null;
+        }
+
+        const userTokenKey = `${username}_google_drive_persistent_token`;
+        const persistentData = localStorage.getItem(userTokenKey);
+        if (!persistentData) return;
+
+        try {
+            const { expiresAt } = JSON.parse(persistentData);
+            const timeUntilExpiry = expiresAt - Date.now();
+            
+            // Schedule 1 minute before actual expiry
+            const delay = Math.max(0, timeUntilExpiry - 60000);
+            
+            console.log(`Scheduling token expiry check for ${username} in ${Math.round(delay / 1000 / 60)} minutes`);
+            
+            tokenExpiryTimerRef.current = setTimeout(async () => {
+                console.log('Token expiry timer fired, attempting silent re-auth...');
+                try {
+                    await ensureSubsystems();
+                    const result = await getToken(username, hint, true);
+                    if (result && result.token) {
+                        console.log('Silent re-auth successful, rescheduling expiry check.');
+                        setIsGoogleSignedIn(true);
+                        scheduleTokenExpiryCheck(username, hint);
+                    } else {
+                        console.warn('Silent re-auth failed on expiry, session expired.');
+                        setIsGoogleSignedIn(false);
+                        setShowSessionExpiredBanner(true);
+                    }
+                } catch (err) {
+                    console.error('Error during silent re-auth on expiry:', err);
+                    setIsGoogleSignedIn(false);
+                    setShowSessionExpiredBanner(true);
+                }
+            }, delay);
+        } catch (e) {
+            console.error('Failed to parse token data for expiry check:', e);
+        }
+    }, []);
+
+    const handleReconnect = async () => {
+        if (!currentUser) return;
+        setIsGoogleLoading(true);
+        try {
+            await ensureSubsystems();
+            const username = currentUser.username || currentUser;
+            const hint = currentUser.isGoogle ? currentUser.profile?.email : null;
+
+            // Try interactive but NOT forcing account selection
+            // Passing the hint allows Google to skip the account list
+            const result = await getToken(username, hint, false, false);
+
+            if (result && result.token) {
+                setIsGoogleSignedIn(true);
+                setShowSessionExpiredBanner(false);
+                scheduleTokenExpiryCheck(username, hint);
+                toast.success("Reconnected to Google Drive");
+                handleCloudSync(false);
+            }
+        } catch (error) {
+            console.error("Reconnect Error:", error);
+            toast.error("Failed to reconnect");
+        } finally {
+            setIsGoogleLoading(false);
+        }
     };
 
     const handleCloudSync = async (showToast = true, overrideUser = null, forceCloud = false) => {
@@ -993,6 +1103,12 @@ function App() {
         if (!userToSync || !userToSync.username) {
             console.error("Cloud Sync: No valid user to sync.", { currentUser, overrideUser });
             if (showToast) toast.error("Please log in to sync");
+            return;
+        }
+
+        if (userToSync.isGoogle && !isGoogleSignedIn) {
+            setShowSessionExpiredBanner(true);
+            if (showToast) toast.error("Session expired. Please reconnect.");
             return;
         }
 
@@ -1004,8 +1120,8 @@ function App() {
 
             // Safety check: ensure GAPI has a token
             if (!gapi.client.getToken()) {
-                const token = await getToken(username, userToSync.isGoogle ? userToSync.profile?.email : null, true);
-                if (!token) throw new Error("Not authenticated");
+                const result = await getToken(username, userToSync.isGoogle ? userToSync.profile?.email : null, true);
+                if (!result || !result.token) throw new Error("Not authenticated");
             }
 
             const syncFile = await findSyncFile();
@@ -1122,6 +1238,12 @@ function App() {
             }
         } catch (error) {
             console.error("Cloud Sync Error:", error);
+            if (error.message === "Not authenticated" || (error.result && error.result.error === 'invalid_grant')) {
+                setIsGoogleSignedIn(false);
+                if (currentUser && currentUser.isGoogle) {
+                    setShowSessionExpiredBanner(true);
+                }
+            }
             toast.error("Failed to sync with Google Drive");
         } finally {
             setIsGoogleLoading(false);
@@ -1136,8 +1258,8 @@ function App() {
 
             // Safety check: ensure GAPI has a token
             if (!gapi.client.getToken()) {
-                const token = await getToken(username, currentUser.isGoogle ? currentUser.profile?.email : null, true);
-                if (!token) throw new Error("Not authenticated");
+                const result = await getToken(username, currentUser.isGoogle ? currentUser.profile?.email : null, true);
+                if (!result || !result.token) throw new Error("Not authenticated");
             }
 
             const syncFile = await findSyncFile();
@@ -1172,6 +1294,12 @@ function App() {
             }
         } catch (error) {
             console.error("Cloud Upload Error:", error);
+            if (error.message === "Not authenticated" || (error.result && error.result.error === 'invalid_grant')) {
+                setIsGoogleSignedIn(false);
+                if (currentUser && currentUser.isGoogle) {
+                    setShowSessionExpiredBanner(true);
+                }
+            }
             if (showToast) {
                 toast.error("Failed to upload to Google Drive");
             }
@@ -2918,7 +3046,7 @@ function App() {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setShowUserMenu(true)}
-                        className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/30 rounded-full px-4 py-2 text-sm text-gray-300 hover:text-white transition-all backdrop-blur-md shadow-lg"
+                        className="flex items-center justify-center sm:justify-start gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/30 rounded-full w-10 sm:w-auto sm:px-4 h-10 text-sm text-gray-300 hover:text-white transition-all backdrop-blur-md shadow-lg"
                     >
                         <div className="shrink-0">
                             {currentUser.isGoogle && currentUser.profile?.picture ? (
@@ -2939,6 +3067,37 @@ function App() {
                     </motion.button>
                 </div>
             )}
+
+            {/* Top Center Session Expired Pill */}
+            <AnimatePresence>
+                {currentUser && showSessionExpiredBanner && !isGoogleSignedIn && !isModalOpen && (
+                    <motion.div
+                        initial={{ y: -50, x: "-50%", opacity: 0 }}
+                        animate={{ y: 0, x: "-50%", opacity: 1 }}
+                        exit={{ y: -50, x: "-50%", opacity: 0 }}
+                        className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center justify-between w-[calc(100%-160px)] sm:w-auto sm:min-w-max px-3 sm:px-4 h-10 bg-amber-500/10 backdrop-blur-md border border-amber-500/20 rounded-full shadow-lg"
+                    >
+                        <div className="flex items-center gap-1.5 sm:gap-2 mr-2 whitespace-nowrap overflow-hidden">
+                            <AlertCircle size={14} className="text-amber-500 shrink-0" />
+                            <span className="text-[9px] sm:text-xs font-bold text-amber-500 uppercase tracking-wider truncate">Session Expired</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                            <button
+                                onClick={handleReconnect}
+                                className="bg-amber-600 hover:bg-amber-500 text-white px-2 sm:px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-bold transition-all shadow-sm whitespace-nowrap"
+                            >
+                                Reconnect
+                            </button>
+                            <button
+                                onClick={() => setShowSessionExpiredBanner(false)}
+                                className="text-amber-500/50 hover:text-amber-500 p-0.5"
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* User Menu Modal */}
             <AnimatePresence>
@@ -3036,9 +3195,9 @@ function App() {
                                 performanceSettings={performanceSettings}
                                 onTogglePerformanceSetting={togglePerformanceSetting}
                                 isGoogleSignedIn={isGoogleSignedIn}
+                                isGoogleReconnecting={isGoogleReconnecting}
                                 isGoogleLoading={isGoogleLoading}
-                                lastCloudSync={lastCloudSync}
-                                onGoogleSignIn={handleGoogleSignIn}
+                                lastCloudSync={lastCloudSync}                                onGoogleSignIn={handleGoogleSignIn}
                                 onGoogleSignOut={handleGoogleSignOut}
                                 onCancelGoogleSignIn={handleCancelGoogleSignIn}
                                 onCloudSync={handleCloudSync}
@@ -3107,7 +3266,7 @@ function App() {
                         onClick={() => {
                             setShowSearchModal(true);
                         }}
-                        className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/30 rounded-full px-4 py-2 text-sm text-gray-300 hover:text-white transition-all backdrop-blur-md shadow-lg"
+                        className="flex items-center justify-center sm:justify-start gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/30 rounded-full w-10 sm:w-auto sm:px-4 h-10 text-sm text-gray-300 hover:text-white transition-all backdrop-blur-md shadow-lg"
                     >
                         <Search size={16} />
                         <span className="hidden sm:inline">Search</span>

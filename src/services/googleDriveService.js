@@ -88,7 +88,7 @@ export const getToken = (username, hint = null, silent = false, forceSelect = fa
                 // If token is still valid (with 5 min buffer), use it
                 if (token && expiresAt > Date.now() + 300000) {
                     gapi.client.setToken({ access_token: token });
-                    return Promise.resolve(token);
+                    return Promise.resolve({ token, expiresAt });
                 }
             } catch (e) {
                 localStorage.removeItem(userTokenKey);
@@ -157,14 +157,14 @@ export const getToken = (username, hint = null, silent = false, forceSelect = fa
                     }));
                     // Set token for GAPI client
                     gapi.client.setToken({ access_token: resp.access_token });
-                    resolve(resp.access_token);
+                    resolve({ token: resp.access_token, expiresAt });
                 }
             };
 
             const options = {};
             if (silent) {
                 options.prompt = 'none';
-            } else if (forceSelect || gapi.client.getToken() === null) {
+            } else if (forceSelect) {
                 options.prompt = 'select_account';
             } else {
                 options.prompt = '';

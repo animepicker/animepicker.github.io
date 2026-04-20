@@ -68,6 +68,7 @@ export default function UserMenuContent({
     performanceSettings = { enableBlur: false, enhancedMotion: false },
     onTogglePerformanceSetting,
     isGoogleSignedIn,
+    isGoogleReconnecting = false,
     isGoogleLoading,
     lastCloudSync,
     onGoogleSignIn,
@@ -308,11 +309,21 @@ export default function UserMenuContent({
                 </h3>
                 {!showBack && (
                     <div className="flex items-center gap-1.5">
-                        <p className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold">
-                            {currentUser?.isGoogle ? (isGoogleSignedIn ? 'Google Account' : 'Google Linked') : 'Local Account'}
+                        <p className={`text-[10px] uppercase tracking-wider font-semibold ${
+                            isGoogleReconnecting ? 'text-blue-400' : 
+                            (currentUser?.isGoogle && !isGoogleSignedIn) ? 'text-amber-500' : 'text-gray-500'
+                        }`}>
+                            {isGoogleReconnecting ? 'Reconnecting...' : 
+                             (currentUser?.isGoogle ? (isGoogleSignedIn ? 'Google Account' : 'Session Expired') : 'Local Account')}
                         </p>
-                        {isGoogleSignedIn && (
+                        {isGoogleSignedIn && !isGoogleReconnecting && (
                             <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                        )}
+                        {isGoogleReconnecting && (
+                            <div className="w-1 h-1 rounded-full bg-blue-500 animate-pulse" />
+                        )}
+                        {currentUser?.isGoogle && !isGoogleSignedIn && !isGoogleReconnecting && (
+                            <div className="w-1 h-1 rounded-full bg-amber-500" />
                         )}
                     </div>
                 )}
@@ -1694,11 +1705,19 @@ export default function UserMenuContent({
                                             <button
                                                 onClick={() => setCurrentView('cloud_privacy')}
                                                 disabled={isGoogleLoading}
-                                                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-500 transition-all shadow-lg shadow-blue-900/20 disabled:opacity-50"
+                                                className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all shadow-lg disabled:opacity-50 ${
+                                                    currentUser?.isGoogle ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/20 text-white' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/20 text-white'
+                                                }`}
                                             >
                                                 {isGoogleLoading ? <Loader2 size={18} className="animate-spin" /> : <Cloud size={18} />}
-                                                {currentUser?.isGoogle ? "Sign in with Google" : "Use Google Drive for Sync"}
+                                                {currentUser?.isGoogle ? "Reconnect with Google" : "Use Google Drive for Sync"}
                                             </button>
+
+                                            {currentUser?.isGoogle && !isGoogleLoading && (
+                                                <p className="text-[10px] text-amber-500 text-center font-medium px-2 leading-relaxed">
+                                                    Your session expired. Sign in again to restore cloud sync.
+                                                </p>
+                                            )}
 
                                             {isGoogleLoading && (
                                                 <button

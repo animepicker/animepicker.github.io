@@ -36,6 +36,7 @@ temp
 # Openspec directories
 .agent/
 .codex/
+.kilo/
 .kilocode/
 .roo/
 .gemini/
