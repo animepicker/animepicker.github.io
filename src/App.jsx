@@ -976,9 +976,14 @@ function App() {
                 console.warn('STEP 4 WARNING: No token returned from getToken');
             }
         } catch (error) {
-            console.error("CRITICAL SIGN-IN ERROR:", error);
+            console.error("GOOGLE SIGN-IN ERROR:", error);
             const errorMsg = error.message || "Failed to sign in with Google";
             toast.error(errorMsg);
+
+            // If it was a timeout, the user might need to know about popups
+            if (errorMsg.includes("popup")) {
+                toast.info("Tip: Look for the popup blocked icon in your browser's address bar.", { duration: 5000 });
+            }
         } finally {
             console.log('STEP FINAL: Sign-in flow ended, clearing loading state');
             setIsGoogleLoading(false);
@@ -1003,12 +1008,18 @@ function App() {
                 handleCloudSync(false);
             }
         } catch (error) {
-            console.error("Linking Error:", error);
-            toast.error("Failed to connect Google Drive");
+            console.error("Link Account Error:", error);
+            const errorMsg = error.message || "Failed to connect to Google Drive";
+            toast.error(errorMsg);
+
+            // If it was a timeout, the user might need to know about popups
+            if (errorMsg.includes("popup")) {
+                toast.info("Tip: Look for the popup blocked icon in your browser's address bar.", { duration: 5000 });
+            }
         } finally {
             setIsGoogleLoading(false);
         }
-    };
+        };
 
     const handleCancelGoogleSignIn = () => {
         setIsGoogleLoading(false);
@@ -1074,15 +1085,24 @@ function App() {
     const handleReconnect = async () => {
         if (!currentUser) return;
         setIsGoogleLoading(true);
+        setIsGoogleReconnecting(true);
+
+        // Show a "Check popups" hint if it takes too long, but don't fail yet
+        const hintTimeout = setTimeout(() => {
+            if (isGoogleLoading) {
+                toast.info("Still waiting? Check if your browser blocked the Google popup.", { duration: 5000 });
+            }
+        }, 4000);
+
         try {
             await ensureSubsystems();
             const username = currentUser.username || currentUser;
             const hint = currentUser.isGoogle ? currentUser.profile?.email : null;
 
             // Try interactive but NOT forcing account selection
-            // Passing the hint allows Google to skip the account list
             const result = await getToken(username, hint, false, false);
 
+            clearTimeout(hintTimeout);
             if (result && result.token) {
                 setIsGoogleSignedIn(true);
                 setShowSessionExpiredBanner(false);
@@ -1091,10 +1111,13 @@ function App() {
                 handleCloudSync(false);
             }
         } catch (error) {
+            clearTimeout(hintTimeout);
             console.error("Reconnect Error:", error);
-            toast.error("Failed to reconnect");
+            const errorMsg = error.message || "Failed to reconnect";
+            toast.error(errorMsg);
         } finally {
             setIsGoogleLoading(false);
+            setIsGoogleReconnecting(false);
         }
     };
 

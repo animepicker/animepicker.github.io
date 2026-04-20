@@ -106,15 +106,19 @@ export const getToken = (username, hint = null, silent = false, forceSelect = fa
     return new Promise((resolve, reject) => {
         let hasResolved = false;
 
-        // Safety timeout: If Google doesn't call back in 30 seconds, reject.
-        // This prevents the UI from hanging on "Connecting..." indefinitely.
+        // Safety timeout: If Google doesn't call back, reject to prevent hanging.
+        // We use a shorter timeout for silent requests since they should be near-instant.
+        const timeoutDuration = silent ? 10000 : 60000;
         const timeoutId = setTimeout(() => {
-            if (!hasResolved && !silent) {
+            if (!hasResolved) {
                 hasResolved = true;
-                console.error('getToken: Request timed out after 30 seconds.');
-                reject(new Error('Sign-in request timed out. Please check if the popup was blocked.'));
+                console.error(`getToken: Request timed out after ${timeoutDuration/1000} seconds.`);
+                const msg = silent 
+                    ? 'Silent sign-in timed out.' 
+                    : 'Sign-in request timed out. Please check if the popup was blocked by your browser.';
+                reject(new Error(msg));
             }
-        }, 30000);
+        }, timeoutDuration);
 
         try {
             tokenClient.callback = async (resp) => {
