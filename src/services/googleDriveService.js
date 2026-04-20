@@ -118,8 +118,10 @@ export const getToken = (username, hint = null, silent = false, forceSelect = fa
         if (persistentData) {
             try {
                 const { token, expiresAt } = JSON.parse(persistentData);
-                // If token is still valid (with 5 min buffer), use it
-                if (token && expiresAt > Date.now() + 300000) {
+                // For interactive requests, use a 5-minute safety buffer.
+                // For silent requests, accept the token until the exact moment of expiry.
+                const buffer = silent ? 0 : 300000;
+                if (token && expiresAt > Date.now() + buffer) {
                     gapi.client.setToken({ access_token: token });
                     return Promise.resolve({ token, expiresAt });
                 }
@@ -129,21 +131,11 @@ export const getToken = (username, hint = null, silent = false, forceSelect = fa
         }
     }
 
-    // For silent re-auth, if we don't have a VALID token record, 
-    // we should NOT trigger the GIS library at all to avoid "popup spam".
-    const persistentData = localStorage.getItem(userTokenKey);
-    let isValid = false;
-    if (persistentData) {
-        try {
-            const { token, expiresAt } = JSON.parse(persistentData);
-            if (token && expiresAt > Date.now()) {
-                isValid = true;
-            }
-        } catch (e) {}
-    }
-
-    if (silent && !isValid) {
-        console.log(`getToken: Silent re-auth skipped for ${username}, no valid persistent token found.`);
+    // If we reach here, we don't have a usable token (missing or expired).
+    // For silent requests, we DO NOT trigger GIS background requests because they 
+    // frequently trigger browser "blocked popup" warnings.
+    if (silent) {
+        console.log(`getToken: Silent re-auth skipped for ${username}. No valid token in cache.`);
         return Promise.resolve(null);
     }
 
