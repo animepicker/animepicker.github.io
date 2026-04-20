@@ -874,7 +874,7 @@ function App() {
                                 scheduleTokenExpiryCheck(username, hint);
                                 setLastCloudSync(localStorage.getItem(`${username}_last_cloud_sync`) || null);
                                 // CRITICAL: Pass currentUser directly AND forceCloud=true to stop resurrection
-                                handleCloudSync(false, currentUser, true);
+                                handleCloudSync(false, currentUser, true, true);
                             }
                         } else {
                             // Silent re-auth failed or was skipped (e.g. expired)
@@ -963,7 +963,7 @@ function App() {
 
                     console.log('STEP 6: Starting initial cloud sync');
                     try {
-                        await handleCloudSync(false, user);
+                        await handleCloudSync(false, user, true, true);
                         console.log('STEP 7: Cloud sync complete');
                     } catch (syncError) {
                         console.error('STEP 7 ERROR: Cloud sync failed:', syncError);
@@ -1078,7 +1078,7 @@ function App() {
                 setShowSessionExpiredBanner(false);
                 scheduleTokenExpiryCheck(username, hint);
                 toast.success("Reconnected to Google Drive");
-                handleCloudSync(false);
+                handleCloudSync(false, null, true, true);
             }
         } catch (error) {
             console.error("Reconnect Error:", error);
@@ -1090,7 +1090,7 @@ function App() {
         }
     };
 
-    const handleCloudSync = async (showToast = true, overrideUser = null, forceCloud = false) => {
+    const handleCloudSync = async (showToast = true, overrideUser = null, forceCloud = false, skipSessionCheck = false) => {
         const userToSync = overrideUser || currentUser;
         if (!userToSync || !userToSync.username) {
             console.error("Cloud Sync: No valid user to sync.", { currentUser, overrideUser });
@@ -1098,7 +1098,7 @@ function App() {
             return;
         }
 
-        if (userToSync.isGoogle && !isGoogleSignedIn) {
+        if (!skipSessionCheck && userToSync.isGoogle && !isGoogleSignedIn) {
             setShowSessionExpiredBanner(true);
             if (showToast) toast.error("Session expired. Please reconnect.");
             return;
