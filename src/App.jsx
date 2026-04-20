@@ -876,8 +876,8 @@ function App() {
                                 // CRITICAL: Pass currentUser directly AND forceCloud=true to stop resurrection
                                 handleCloudSync(false, currentUser, true);
                             }
-                        } else if (currentUser.isGoogle) {
-                            // Silent re-auth failed for a Google-native user
+                        } else {
+                            // Silent re-auth failed or was skipped (e.g. expired)
                             setIsGoogleSignedIn(false);
                             // Only show banner if we actually have a record of a previous successful login
                             if (hasStoredToken) {
@@ -887,11 +887,9 @@ function App() {
                     }).catch((err) => {
                         console.warn('Initial silent Google re-auth failed or not available for user.');
                         setIsGoogleReconnecting(false);
-                        if (currentUser.isGoogle) {
-                            setIsGoogleSignedIn(false);
-                            if (hasStoredToken) {
-                                setShowSessionExpiredBanner(true);
-                            }
+                        setIsGoogleSignedIn(false);
+                        if (hasStoredToken) {
+                            setShowSessionExpiredBanner(true);
                         }
                     });
                 });
@@ -929,11 +927,13 @@ function App() {
     const handleGoogleSignIn = async () => {
         setIsGoogleLoading(true);
         console.log('STEP 1: Starting Google Sign In flow');
+
         try {
             console.log('STEP 2: Ensuring GAPI subsystems');
             await ensureSubsystems();
 
             console.log('STEP 3: Requesting token from GIS');
+            // getToken(username, hint, silent, forceSelect)
             const result = await getToken('temp_login', null, false, true);
 
             if (result && result.token) {
@@ -996,7 +996,9 @@ function App() {
 
         try {
             await ensureSubsystems();
+            // getToken(username, hint, silent, forceSelect)
             const result = await getToken(currentUser.username, null, false, true);
+            
             if (result && result.token) {
                 // Pure isolation: We don't link the identity in authService.
                 // We just mark as signed in for this session.
@@ -1052,30 +1054,15 @@ function App() {
             const { expiresAt } = JSON.parse(persistentData);
             const timeUntilExpiry = expiresAt - Date.now();
             
-            // Schedule 1 minute before actual expiry
-            const delay = Math.max(0, timeUntilExpiry - 60000);
+            // Schedule exactly at expiry (no buffer)
+            const delay = Math.max(0, timeUntilExpiry);
             
-            console.log(`Scheduling token expiry check for ${username} in ${Math.round(delay / 1000 / 60)} minutes`);
+            console.log(`Scheduling token expiry notification for ${username} in ${Math.round(delay / 1000 / 60)} minutes`);
             
-            tokenExpiryTimerRef.current = setTimeout(async () => {
-                console.log('Token expiry timer fired, attempting silent re-auth...');
-                try {
-                    await ensureSubsystems();
-                    const result = await getToken(username, hint, true);
-                    if (result && result.token) {
-                        console.log('Silent re-auth successful, rescheduling expiry check.');
-                        setIsGoogleSignedIn(true);
-                        scheduleTokenExpiryCheck(username, hint);
-                    } else {
-                        console.warn('Silent re-auth failed on expiry, session expired.');
-                        setIsGoogleSignedIn(false);
-                        setShowSessionExpiredBanner(true);
-                    }
-                } catch (err) {
-                    console.error('Error during silent re-auth on expiry:', err);
-                    setIsGoogleSignedIn(false);
-                    setShowSessionExpiredBanner(true);
-                }
+            tokenExpiryTimerRef.current = setTimeout(() => {
+                console.log('Google token expired, showing reconnect banner.');
+                setIsGoogleSignedIn(false);
+                setShowSessionExpiredBanner(true);
             }, delay);
         } catch (e) {
             console.error('Failed to parse token data for expiry check:', e);
@@ -1087,13 +1074,6 @@ function App() {
         setIsGoogleLoading(true);
         setIsGoogleReconnecting(true);
 
-        // Show a "Check popups" hint if it takes too long, but don't fail yet
-        const hintTimeout = setTimeout(() => {
-            if (isGoogleLoading) {
-                toast.info("Still waiting? Check if your browser blocked the Google popup.", { duration: 5000 });
-            }
-        }, 4000);
-
         try {
             await ensureSubsystems();
             const username = currentUser.username || currentUser;
@@ -1102,7 +1082,6 @@ function App() {
             // Try interactive but NOT forcing account selection
             const result = await getToken(username, hint, false, false);
 
-            clearTimeout(hintTimeout);
             if (result && result.token) {
                 setIsGoogleSignedIn(true);
                 setShowSessionExpiredBanner(false);
@@ -1111,7 +1090,6 @@ function App() {
                 handleCloudSync(false);
             }
         } catch (error) {
-            clearTimeout(hintTimeout);
             console.error("Reconnect Error:", error);
             const errorMsg = error.message || "Failed to reconnect";
             toast.error(errorMsg);

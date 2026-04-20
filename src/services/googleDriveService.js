@@ -24,41 +24,74 @@ let tokenClient;
 let gapiInited = false;
 let gisInited = false;
 
-// Initialize GAPI
-export const initGapi = () => {
+// Helper to wait for a global variable to be defined
+const waitForGlobal = (key, timeout = 10000) => {
     return new Promise((resolve, reject) => {
-        gapi.load('client', async () => {
-            try {
-                if (!API_KEY) throw new Error('VITE_GOOGLE_API_KEY is missing from .env');
-                await gapi.client.init({
-                    apiKey: API_KEY,
-                    discoveryDocs: [DISCOVERY_DOC],
-                });
-                gapiInited = true;
-                resolve();
-            } catch (err) {
-                console.error('Error initializing GAPI client', err);
-                reject(err);
+        if (window[key]) {
+            resolve(window[key]);
+            return;
+        }
+
+        const start = Date.now();
+        const interval = setInterval(() => {
+            if (window[key]) {
+                clearInterval(interval);
+                resolve(window[key]);
+            } else if (Date.now() - start > timeout) {
+                clearInterval(interval);
+                reject(new Error(`Timeout waiting for Google library: ${key}. Check your internet connection or CSP settings.`));
             }
-        });
+        }, 100);
     });
 };
 
-// Initialize GIS
-export const initGis = () => {
-    return new Promise((resolve) => {
-        if (!CLIENT_ID) {
-            console.error('VITE_GOOGLE_CLIENT_ID is missing from .env');
-            return resolve(); // Resolve anyway so we don't hang, but handle in getToken
-        }
-        tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: CLIENT_ID,
-            scope: SCOPES,
-            callback: '', // defined at request time
+// Initialize GAPI
+export const initGapi = async () => {
+    try {
+        await waitForGlobal('gapi');
+        return new Promise((resolve, reject) => {
+            gapi.load('client', async () => {
+                try {
+                    if (!API_KEY) throw new Error('VITE_GOOGLE_API_KEY is missing from .env');
+                    await gapi.client.init({
+                        apiKey: API_KEY,
+                        discoveryDocs: [DISCOVERY_DOC],
+                    });
+                    gapiInited = true;
+                    resolve();
+                } catch (err) {
+                    console.error('Error initializing GAPI client', err);
+                    reject(err);
+                }
+            });
         });
-        gisInited = true;
-        resolve();
-    });
+    } catch (err) {
+        console.error('initGapi: Failed to load gapi script', err);
+        throw err;
+    }
+};
+
+// Initialize GIS
+export const initGis = async () => {
+    try {
+        await waitForGlobal('google');
+        return new Promise((resolve) => {
+            if (!CLIENT_ID) {
+                console.error('VITE_GOOGLE_CLIENT_ID is missing from .env');
+                return resolve(); // Resolve anyway so we don't hang, but handle in getToken
+            }
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: '', // defined at request time
+            });
+            gisInited = true;
+            resolve();
+        });
+    } catch (err) {
+        console.error('initGis: Failed to load google (GIS) script', err);
+        throw err;
+    }
 };
 
 // Ensure everything is ready
@@ -96,10 +129,21 @@ export const getToken = (username, hint = null, silent = false, forceSelect = fa
         }
     }
 
-    // For silent re-auth, if we don't have ANY token record at all, 
+    // For silent re-auth, if we don't have a VALID token record, 
     // we should NOT trigger the GIS library at all to avoid "popup spam".
-    if (silent && !localStorage.getItem(userTokenKey)) {
-        console.log(`getToken: Silent re-auth skipped for ${username}, no persistent token record found.`);
+    const persistentData = localStorage.getItem(userTokenKey);
+    let isValid = false;
+    if (persistentData) {
+        try {
+            const { token, expiresAt } = JSON.parse(persistentData);
+            if (token && expiresAt > Date.now()) {
+                isValid = true;
+            }
+        } catch (e) {}
+    }
+
+    if (silent && !isValid) {
+        console.log(`getToken: Silent re-auth skipped for ${username}, no valid persistent token found.`);
         return Promise.resolve(null);
     }
 
@@ -129,6 +173,12 @@ export const getToken = (username, hint = null, silent = false, forceSelect = fa
                 console.log('GIS Callback Response Received:', resp);
                 if (resp.error !== undefined) {
                     console.error('GIS Error Response:', resp.error, resp.error_description);
+                    
+                    if (resp.error === 'popup_closed') {
+                        reject(new Error('Sign-in cancelled: popup was closed.'));
+                        return;
+                    }
+
                     if (resp.error === 'interaction_required') {
                         console.warn('Silent auth failed: interaction required. User must click sign-in.');
                         if (silent) {
