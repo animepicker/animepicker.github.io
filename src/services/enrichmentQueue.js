@@ -2,6 +2,18 @@
 // Handles background enrichment of anime items with demographics/genres from Jikan API
 
 import { validateDemographics } from '../utils/tagUtils';
+import { getAnimeDetails } from './jikanService';
+import { getAnimeInfo } from './aiService';
+import { 
+    getCurrentUser, 
+    getUserLibrary, 
+    saveUserLibrary,
+    getUserWatchlist, 
+    saveUserWatchlist,
+    getUserRecommendations, 
+    saveUserRecommendations,
+    getUserInstructions 
+} from './authService';
 
 const ENRICHMENT_QUEUE_KEY = 'anime_enrichment_queue';
 const MAX_JOB_ATTEMPTS = 3;
@@ -135,7 +147,6 @@ export const processQueue = async () => {
 
             try {
                 // Jikan-first: Try to get details from Jikan
-                const { getAnimeDetails } = await import('./jikanService');
                 const details = await getAnimeDetails(job.title);
 
                 console.log(`[Enrichment] Got Jikan details for: ${job.title}`, { details });
@@ -170,8 +181,6 @@ export const processQueue = async () => {
 
                 // If Jikan didn't return demographics (or no data at all), try AI fallback
                 // Check if demographics are still missing
-                const { getAnimeInfo } = await import('./aiService');
-                const { getUserInstructions } = await import('./authService');
 
                 // Get user's selected AI provider from localStorage
                 let aiProvider = localStorage.getItem('ai_provider') || 'openrouter';
@@ -284,11 +293,6 @@ export const processQueue = async () => {
 const mergeEnrichmentData = async (job, enrichmentData) => {
     try {
         console.log(`[Enrichment] Merging data for: ${job.title}`, { job, enrichmentData });
-
-        // Get the auth service functions
-        const { getCurrentUser, getUserLibrary, saveUserLibrary,
-            getUserWatchlist, saveUserWatchlist,
-            getUserRecommendations, saveUserRecommendations } = await import('./authService');
 
         const user = getCurrentUser();
         if (!user) {

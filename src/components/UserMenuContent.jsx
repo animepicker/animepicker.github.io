@@ -313,7 +313,7 @@ export default function UserMenuContent({
                             isGoogleReconnecting ? 'text-blue-400' : 
                             (currentUser?.isGoogle && !isGoogleSignedIn) ? 'text-amber-500' : 'text-gray-500'
                         }`}>
-                            {isGoogleReconnecting ? 'Reconnecting...' : 
+                            {isGoogleReconnecting ? 'Reconnecting' : 
                              (currentUser?.isGoogle ? (isGoogleSignedIn ? 'Google Account' : 'Session Expired') : 'Local Account')}
                         </p>
                         {isGoogleSignedIn && !isGoogleReconnecting && (

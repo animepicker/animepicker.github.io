@@ -57,7 +57,13 @@ export default defineConfig({
                     'vendor-react': ['react', 'react-dom'],
                     'vendor-motion': ['framer-motion'],
                     'vendor-icons': ['lucide-react'],
-                    'vendor-ai': ['@google/generative-ai']
+                    'vendor-ai': ['@google/generative-ai'],
+                    'services': [
+                        './src/services/aiService.js',
+                        './src/services/authService.js',
+                        './src/services/jikanService.js',
+                        './src/services/enrichmentQueue.js'
+                    ]
                 }
             }
         },
