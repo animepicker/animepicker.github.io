@@ -99,6 +99,16 @@ export default function UserMenuContent({
     const [currentView, setCurrentView] = useState(initialView); // 'main', 'about', 'api', 'api_providers', 'api_models', 'api_custom_edit', 'instructions', 'regen', 'regen_options', 'excluded', 'effects', 'cloud', 'destruction', 'data_backup', 'console', 'api_utility'
     const [selectionContext, setSelectionContext] = useState('primary'); // 'primary' or 'utility'
 
+    const getApiKeyHint = (providerId) => {
+        if (providerId === 'groq') return "gsk_...";
+        if (providerId === 'cerebras') return "csk-...";
+        if (providerId === 'mistral') return "Mistral API Key";
+        if (providerId === 'nvidia') return "nvapi-...";
+        if (providerId === 'google') return "AIza...";
+        if (customProviders.find(p => p.id === providerId)) return "Key for this provider...";
+        return "sk-or-..."; // Default to OpenRouter
+    };
+
     const activeProvider = selectionContext === 'utility' ? taskAiProvider : aiProvider;
     const activeModels = (allProvidersModels[activeProvider] || []) || [];
     const activeSelectedModel = selectionContext === 'utility' ? taskSelectedModel : selectedModel;
@@ -654,7 +664,7 @@ export default function UserMenuContent({
                                                 }
                                             }}
                                             onBlur={() => onRefreshModels(aiProvider)}
-                                            placeholder={aiProvider === 'groq' ? DEFAULT_GROQ_MODEL : aiProvider === 'cerebras' ? DEFAULT_CEREBRAS_MODEL : aiProvider === 'mistral' ? DEFAULT_MISTRAL_MODEL : aiProvider === 'nvidia' ? DEFAULT_NVIDIA_MODEL : aiProvider === 'google' ? DEFAULT_GOOGLE_MODEL : (customProviders.find(p => p.id === aiProvider) ? "Enter API Key..." : DEFAULT_OPENROUTER_MODEL)}
+                                            placeholder={getApiKeyHint(aiProvider)}
                                             className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 pr-12 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50 focus:bg-black/40 transition-all"
                                         />
                                         <button
