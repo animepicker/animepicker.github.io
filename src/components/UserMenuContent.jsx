@@ -71,6 +71,7 @@ export default function UserMenuContent({
     isGoogleReconnecting = false,
     isGoogleLoading,
     lastCloudSync,
+    onReconnect,
     onGoogleSignIn,
     onGoogleSignOut,
     onCancelGoogleSignIn,
@@ -1043,7 +1044,10 @@ export default function UserMenuContent({
                                                 Please enter an API key first to load models.
                                             </div>
                                         ) : filteredModels.length === 0 ? (
-                                            <div className="text-center py-8 text-gray-500 text-sm">No models found</div>
+                                            <div className="text-center py-8 text-amber-400/80 text-sm px-6 bg-amber-500/5 rounded-2xl border border-amber-500/10 space-y-1">
+                                                <div className="font-medium">{searchQuery ? "No models match your search" : "API key may be wrong or connection failed"}</div>
+                                                {!searchQuery && <div className="text-[10px] opacity-60">Hint: {activeProvider.charAt(0).toUpperCase() + activeProvider.slice(1)} keys usually start with <span className="font-mono text-amber-400 font-bold">{getApiKeyHint(activeProvider)}</span></div>}
+                                            </div>
                                         ) : (
                                             Array.from(new Map(filteredModels.map(m => [m.id, m])).values()).map(model => (
                                                 <button
@@ -1713,7 +1717,13 @@ export default function UserMenuContent({
                                     {!isGoogleSignedIn ? (
                                         <div className="space-y-3">
                                             <button
-                                                onClick={() => setCurrentView('cloud_privacy')}
+                                                onClick={() => {
+                                                    if (currentUser?.isGoogle && onReconnect) {
+                                                        onReconnect();
+                                                    } else {
+                                                        setCurrentView('cloud_privacy');
+                                                    }
+                                                }}
                                                 disabled={isGoogleLoading}
                                                 className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all shadow-lg disabled:opacity-50 ${
                                                     currentUser?.isGoogle ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/20 text-white' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/20 text-white'

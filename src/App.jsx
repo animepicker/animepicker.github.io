@@ -3004,9 +3004,7 @@ function App() {
                 google: localStorage.getItem('google_api_key')
             };
             const models = await fetchModels(providerToRefresh, apiKeys);
-            if (models && models.length > 0) {
-                setAllProvidersModels(prev => ({ ...prev, [providerToRefresh]: models }));
-            }
+            setAllProvidersModels(prev => ({ ...prev, [providerToRefresh]: models || [] }));
         } catch (error) {
             let providerName = providerToRefresh;
             if (providerToRefresh.startsWith('custom-')) {
@@ -3189,7 +3187,9 @@ function App() {
                                 isGoogleSignedIn={isGoogleSignedIn}
                                 isGoogleReconnecting={isGoogleReconnecting}
                                 isGoogleLoading={isGoogleLoading}
-                                lastCloudSync={lastCloudSync}                                onGoogleSignIn={handleGoogleSignIn}
+                                lastCloudSync={lastCloudSync}
+                                onReconnect={handleReconnect}
+                                onGoogleSignIn={handleGoogleSignIn}
                                 onGoogleSignOut={handleGoogleSignOut}
                                 onCancelGoogleSignIn={handleCancelGoogleSignIn}
                                 onCloudSync={handleCloudSync}

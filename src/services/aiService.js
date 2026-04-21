@@ -4,7 +4,7 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const CEREBRAS_API_URL = "https://api.cerebras.ai/v1/chat/completions";
 const MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions";
-const GOOGLE_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+const GOOGLE_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions";
 
 // Multi-tiered proxy strategy
 const PRIMARY_PROXY = "https://anipickcors.hhhoutlook394.workers.dev/?url=";
@@ -29,7 +29,7 @@ export const MODEL_URLS = {
   cerebras: "https://api.cerebras.ai/v1/models",
   mistral: "https://api.mistral.ai/v1/models",
   nvidia: isLocalhost ? "/api/nvidia/v1/models" : "https://anipickcors.hhhoutlook394.workers.dev/v1/models",
-  google: "https://generativelanguage.googleapis.com/v1beta/openai/models"
+  google: "https://generativelanguage.googleapis.com/v1beta/models"
 };
 
 const getModel = (provider) => {
@@ -621,8 +621,9 @@ export const fetchModels = async (provider, apiKeys = {}) => {
       headers["Authorization"] = `Bearer ${apiKeys.nvidia}`;
       url = MODEL_URLS.nvidia;
     } else if (provider === 'google' && apiKeys.google) {
-      headers["Authorization"] = `Bearer ${apiKeys.google}`;
+      // Use native Google models endpoint with header-based auth for security
       url = MODEL_URLS.google;
+      headers["x-goog-api-key"] = apiKeys.google;
     } else if (MODEL_URLS[provider]) {
       // standard providers with pre-defined URLs use provided keys or nothing
     } else {
@@ -712,7 +713,7 @@ export const fetchModels = async (provider, apiKeys = {}) => {
     }
 
     const data = await response.json();
-    const modelsData = data.data || data;
+    const modelsData = data.models || data.data || data;
     if (!Array.isArray(modelsData)) {
       return [];
     }
@@ -725,6 +726,10 @@ export const fetchModels = async (provider, apiKeys = {}) => {
         contextLength = m.context_length || 0;
         // OpenRouter exposes max output tokens via top_provider
         maxCompletionTokens = m.top_provider?.max_completion_tokens || 0;
+      } else if (provider === 'google') {
+        // Native Google API fields
+        contextLength = m.inputTokenLimit || 0;
+        maxCompletionTokens = m.outputTokenLimit || 0;
       } else if (provider === 'groq' || provider === 'cerebras') {
         contextLength = m.context_window || 0;
         // Groq/Cerebras don't expose max output tokens in their models endpoint.
@@ -744,8 +749,8 @@ export const fetchModels = async (provider, apiKeys = {}) => {
       }
 
       return {
-        id: m.id,
-        name: m.name || m.id,
+        id: m.id || m.name,
+        name: m.displayName || m.name || m.id,
         contextLength: parseInt(contextLength) || 0,
         maxCompletionTokens: parseInt(maxCompletionTokens) || 0
       };
