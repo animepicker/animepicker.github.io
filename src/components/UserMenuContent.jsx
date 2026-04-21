@@ -16,6 +16,7 @@ import {
     DEFAULT_NVIDIA_MODEL,
     DEFAULT_GOOGLE_MODEL
 } from '../services/aiService';
+import { resolveUserKey } from '../services/authService';
 
 // API Key Input Constants
 // Removed hardcoded DEFAULT_MODEL in favor of aiService.js constants
@@ -121,7 +122,7 @@ export default function UserMenuContent({
     const [isApiKeyVisible, setIsApiKeyVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [maxTokens, setMaxTokens] = useState(() => {
-        const saved = localStorage.getItem('ai_max_tokens');
+        const saved = localStorage.getItem(resolveUserKey('ai_max_tokens')) || localStorage.getItem('ai_max_tokens');
         if (saved === 'auto') return 'auto';
         const parsed = parseInt(saved);
         return isNaN(parsed) ? 73728 : parsed;
@@ -230,57 +231,98 @@ export default function UserMenuContent({
     // Per-model max tokens persistence and defaults
     useEffect(() => {
         if (!selectedModel) return;
-        const savedMaxTokens = localStorage.getItem(`max_tokens_${selectedModel}`);
+        const savedMaxTokens = localStorage.getItem(resolveUserKey(`max_tokens_${selectedModel}`)) || localStorage.getItem(`max_tokens_${selectedModel}`);
         if (savedMaxTokens) {
             const val = savedMaxTokens === 'auto' ? 'auto' : parseInt(savedMaxTokens);
             if (val === 'auto' || !isNaN(val)) {
                 setMaxTokens(val);
-                localStorage.setItem('ai_max_tokens', val);
+                localStorage.setItem(resolveUserKey('ai_max_tokens'), val);
             }
         } else {
             // Default to 'auto' for new models as requested
             setMaxTokens('auto');
-            localStorage.setItem('ai_max_tokens', 'auto');
+            localStorage.setItem(resolveUserKey('ai_max_tokens'), 'auto');
         }
     }, [selectedModel, models, aiProvider]);
 
-    // We no longer fetch models locally, App.jsx handles it.
-    // However, we can trigger a refresh if the user updates an API key. 
-    // This is handled via onBlur on the inputs below.
+    const handleMaxTokensChange = (val) => {
+        setMaxTokens(val);
+        localStorage.setItem(resolveUserKey('ai_max_tokens'), val);
+        if (selectedModel) {
+            localStorage.setItem(resolveUserKey(`max_tokens_${selectedModel}`), val);
+        }
+    };
 
-    const handleModelSelect = (modelId) => {
+    const updateProvider = (id) => {
+        setAiProvider(id);
+        localStorage.setItem(resolveUserKey('ai_provider'), id);
+    };
+
+    const handleModelSelect = (m) => {
+        const provider = selectionContext === 'utility' ? taskAiProvider : aiProvider;
         if (selectionContext === 'utility') {
-            setTaskSelectedModel(modelId);
-            const provider = taskAiProvider;
-            if (provider === 'groq') localStorage.setItem('task_groq_model', modelId);
-            else if (provider === 'cerebras') localStorage.setItem('task_cerebras_model', modelId);
-            else if (provider === 'mistral') localStorage.setItem('task_mistral_model', modelId);
-            else if (provider === 'openrouter') localStorage.setItem('task_openrouter_model', modelId);
-            else if (provider === 'nvidia') localStorage.setItem('task_nvidia_model', modelId);
-            else if (provider === 'google') localStorage.setItem('task_google_model', modelId);
+            setTaskSelectedModel(m);
+            localStorage.setItem(resolveUserKey('task_selected_model'), m);
+            if (provider === 'groq') localStorage.setItem(resolveUserKey('task_groq_model'), m);
+            else if (provider === 'cerebras') localStorage.setItem(resolveUserKey('task_cerebras_model'), m);
+            else if (provider === 'mistral') localStorage.setItem(resolveUserKey('task_mistral_model'), m);
+            else if (provider === 'nvidia') localStorage.setItem(resolveUserKey('task_nvidia_model'), m);
+            else if (provider === 'google') localStorage.setItem(resolveUserKey('task_google_model'), m);
+            else if (provider === 'openrouter') localStorage.setItem(resolveUserKey('task_openrouter_model'), m);
             else {
                 const newCustoms = customProviders.map(p =>
-                    p.id === provider ? { ...p, model: modelId } : p
+                    p.id === provider ? { ...p, model: m } : p
                 );
                 setCustomProviders(newCustoms);
             }
             setCurrentView('api_utility');
         } else {
-            setSelectedModel(modelId);
-            if (aiProvider === 'groq') localStorage.setItem('groq_model', modelId);
-            else if (aiProvider === 'cerebras') localStorage.setItem('cerebras_model', modelId);
-            else if (aiProvider === 'mistral') localStorage.setItem('mistral_model', modelId);
-            else if (aiProvider === 'openrouter') localStorage.setItem('openrouter_model', modelId);
-            else if (aiProvider === 'nvidia') localStorage.setItem('nvidia_model', modelId);
-            else if (aiProvider === 'google') localStorage.setItem('google_model', modelId);
+            setSelectedModel(m);
+            localStorage.setItem(resolveUserKey('selected_model'), m);
+            if (provider === 'groq') localStorage.setItem(resolveUserKey('groq_model'), m);
+            else if (provider === 'cerebras') localStorage.setItem(resolveUserKey('cerebras_model'), m);
+            else if (provider === 'mistral') localStorage.setItem(resolveUserKey('mistral_model'), m);
+            else if (provider === 'nvidia') localStorage.setItem(resolveUserKey('nvidia_model'), m);
+            else if (provider === 'google') localStorage.setItem(resolveUserKey('google_model'), m);
+            else if (provider === 'openrouter') localStorage.setItem(resolveUserKey('openrouter_model'), m);
             else {
                 const newCustoms = customProviders.map(p =>
-                    p.id === aiProvider ? { ...p, model: modelId } : p
+                    p.id === provider ? { ...p, model: m } : p
                 );
                 setCustomProviders(newCustoms);
             }
             setCurrentView('api');
         }
+    };
+
+    const handleApiKeyChange = (val) => {
+        setApiKey(val);
+        localStorage.setItem(resolveUserKey('openrouter_api_key'), val);
+    };
+
+    const handleGroqKeyChange = (val) => {
+        setGroqApiKey(val);
+        localStorage.setItem(resolveUserKey('groq_api_key'), val);
+    };
+
+    const handleCerebrasKeyChange = (val) => {
+        setCerebrasApiKey(val);
+        localStorage.setItem(resolveUserKey('cerebras_api_key'), val);
+    };
+
+    const handleMistralKeyChange = (val) => {
+        setMistralApiKey(val);
+        localStorage.setItem(resolveUserKey('mistral_api_key'), val);
+    };
+
+    const handleNvidiaKeyChange = (val) => {
+        setNvidiaApiKey(val);
+        localStorage.setItem(resolveUserKey('nvidia_api_key'), val);
+    };
+
+    const handleGoogleKeyChange = (val) => {
+        setGoogleApiKey(val);
+        localStorage.setItem(resolveUserKey('google_api_key'), val);
     };
 
     const filteredModels = activeModels.filter(m => {
@@ -637,20 +679,15 @@ export default function UserMenuContent({
                                             onChange={(e) => {
                                                 const key = e.target.value;
                                                 if (aiProvider === 'groq') {
-                                                    setGroqApiKey(key);
-                                                    localStorage.setItem('groq_api_key', key);
+                                                    handleGroqKeyChange(key);
                                                 } else if (aiProvider === 'cerebras') {
-                                                    setCerebrasApiKey(key);
-                                                    localStorage.setItem('cerebras_api_key', key);
+                                                    handleCerebrasKeyChange(key);
                                                 } else if (aiProvider === 'mistral') {
-                                                    setMistralApiKey(key);
-                                                    localStorage.setItem('mistral_api_key', key);
+                                                    handleMistralKeyChange(key);
                                                 } else if (aiProvider === 'nvidia') {
-                                                    setNvidiaApiKey(key);
-                                                    localStorage.setItem('nvidia_api_key', key);
+                                                    handleNvidiaKeyChange(key);
                                                 } else if (aiProvider === 'google') {
-                                                    setGoogleApiKey(key);
-                                                    localStorage.setItem('google_api_key', key);
+                                                    handleGoogleKeyChange(key);
                                                 } else {
                                                     const custom = customProviders.find(p => p.id === aiProvider);
                                                     if (custom) {
@@ -659,8 +696,7 @@ export default function UserMenuContent({
                                                         );
                                                         setCustomProviders(newCustoms);
                                                     } else {
-                                                        setApiKey(key);
-                                                        localStorage.setItem('openrouter_api_key', key);
+                                                        handleApiKeyChange(key);
                                                     }
                                                 }
                                             }}
@@ -735,9 +771,10 @@ export default function UserMenuContent({
                                                 onClick={() => {
                                                     const newVal = maxTokens === 'auto' ? 8192 : 'auto';
                                                     setMaxTokens(newVal);
-                                                    localStorage.setItem('ai_max_tokens', newVal);
+                                                    handleMaxTokensChange(newVal);
+                                                    localStorage.setItem(resolveUserKey('ai_max_tokens'), newVal);
                                                     if (selectedModel) {
-                                                        localStorage.setItem(`max_tokens_${selectedModel}`, newVal);
+                                                        localStorage.setItem(resolveUserKey(`max_tokens_${selectedModel}`), newVal);
                                                     }
                                                 }}
                                                 className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-all ${maxTokens === 'auto' ? 'bg-violet-500 text-white' : 'bg-white/5 text-gray-500'}`}
@@ -759,9 +796,10 @@ export default function UserMenuContent({
                                             onChange={(e) => {
                                                 const val = parseInt(e.target.value);
                                                 setMaxTokens(val);
-                                                localStorage.setItem('ai_max_tokens', val);
+                                                handleMaxTokensChange(val);
+                                                localStorage.setItem(resolveUserKey('ai_max_tokens'), val);
                                                 if (selectedModel) {
-                                                    localStorage.setItem(`max_tokens_${selectedModel}`, val);
+                                                    localStorage.setItem(resolveUserKey(`max_tokens_${selectedModel}`), val);
                                                 }
                                             }}
                                             className="w-full h-2 bg-black/30 rounded-lg appearance-none cursor-pointer accent-violet-500 hover:accent-violet-400 transition-all"

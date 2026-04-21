@@ -1,4 +1,5 @@
 // AI Service for anime recommendations (OpenRouter, Groq, Cerebras)
+import { resolveUserKey } from './authService';
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -33,15 +34,15 @@ export const MODEL_URLS = {
 };
 
 const getModel = (provider) => {
-  if (provider === 'groq') return localStorage.getItem('groq_model') || DEFAULT_GROQ_MODEL;
-  if (provider === 'cerebras') return localStorage.getItem('cerebras_model') || DEFAULT_CEREBRAS_MODEL;
-  if (provider === 'mistral') return localStorage.getItem('mistral_model') || DEFAULT_MISTRAL_MODEL;
-  if (provider === 'nvidia') return localStorage.getItem('nvidia_model') || DEFAULT_NVIDIA_MODEL;
-  if (provider === 'google') return localStorage.getItem('google_model') || DEFAULT_GOOGLE_MODEL;
-  if (provider === 'openrouter') return localStorage.getItem('openrouter_model') || DEFAULT_OPENROUTER_MODEL;
+  if (provider === 'groq') return localStorage.getItem(resolveUserKey('groq_model')) || DEFAULT_GROQ_MODEL;
+  if (provider === 'cerebras') return localStorage.getItem(resolveUserKey('cerebras_model')) || DEFAULT_CEREBRAS_MODEL;
+  if (provider === 'mistral') return localStorage.getItem(resolveUserKey('mistral_model')) || DEFAULT_MISTRAL_MODEL;
+  if (provider === 'nvidia') return localStorage.getItem(resolveUserKey('nvidia_model')) || DEFAULT_NVIDIA_MODEL;
+  if (provider === 'google') return localStorage.getItem(resolveUserKey('google_model')) || DEFAULT_GOOGLE_MODEL;
+  if (provider === 'openrouter') return localStorage.getItem(resolveUserKey('openrouter_model')) || DEFAULT_OPENROUTER_MODEL;
 
   // Custom provider model lookup
-  const customsRaw = localStorage.getItem('custom_providers');
+  const customsRaw = localStorage.getItem(resolveUserKey('custom_providers'));
   if (customsRaw) {
     try {
       const customs = JSON.parse(customsRaw);
@@ -82,7 +83,7 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
     useProxy = false;
   } else {
     // Check if it's a custom provider
-    const customsRaw = localStorage.getItem('custom_providers');
+    const customsRaw = localStorage.getItem(resolveUserKey('custom_providers'));
     if (customsRaw) {
       try {
         const customs = JSON.parse(customsRaw);
@@ -132,7 +133,7 @@ const callAI = async (prompt, apiKey, provider = 'openrouter', signal = null, mo
       const fetchHeaders = { ...headers };
 
       // Determine max_tokens
-      const storedMaxTokens = localStorage.getItem('ai_max_tokens');
+      const storedMaxTokens = localStorage.getItem(resolveUserKey('ai_max_tokens')) || localStorage.getItem('ai_max_tokens');
       let maxTokensValue = 8192; // Global fallback
       let omitMaxTokens = false;
 
@@ -628,7 +629,7 @@ export const fetchModels = async (provider, apiKeys = {}) => {
       // standard providers with pre-defined URLs use provided keys or nothing
     } else {
       // Check for custom provider
-      const customsRaw = localStorage.getItem('custom_providers');
+      const customsRaw = localStorage.getItem(resolveUserKey('custom_providers'));
       if (customsRaw) {
         try {
           const customs = JSON.parse(customsRaw);

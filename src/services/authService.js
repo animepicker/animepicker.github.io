@@ -4,6 +4,13 @@ const USERS_KEY = 'anime_users';
 const CURRENT_USER_KEY = 'anime_current_user';
 const GOOGLE_USER_PREFIX = 'google_';
 
+// Resolve a storage key with the current user's prefix for isolation
+export const resolveUserKey = (key, usernameOverride = null) => {
+    const username = usernameOverride || localStorage.getItem(CURRENT_USER_KEY);
+    if (!username) return key;
+    return `${username}_${key}`;
+};
+
 // Get all users from localStorage
 const getUsers = () => {
     const stored = localStorage.getItem(USERS_KEY);
@@ -113,16 +120,41 @@ export const linkGoogleToEmail = (username, profile) => {
 export const logout = () => {
     const username = localStorage.getItem(CURRENT_USER_KEY);
     if (username) {
-        // Cleanup sensitive profiles and session metadata
-        localStorage.removeItem(`${username}_profile`);
-        localStorage.removeItem(`${username}_google_profile`);
-        localStorage.removeItem(`${username}_last_cloud_sync`);
+        // Identify all keys associated with this specific user prefix
+        const keysToRemove = [];
+        const prefix = `${username}_`;
+        
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(prefix)) {
+                keysToRemove.push(key);
+            }
+        }
 
-        // Also clear AI provider keys to ensure total privacy on logout
-        localStorage.removeItem('openrouter_api_key');
-        localStorage.removeItem('groq_api_key');
-        localStorage.removeItem('cerebras_api_key');
-        localStorage.removeItem('mistral_api_key');
+        // Perform the automated sweep
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+
+        // Also clear legacy global AI provider keys to ensure total privacy on logout
+        // and prevent them from being "inherited" by the next user session
+        const legacyGlobalKeys = [
+            'ai_provider', 'openrouter_api_key', 'groq_api_key', 'cerebras_api_key',
+            'mistral_api_key', 'nvidia_api_key', 'google_api_key', 'custom_providers',
+            'groq_model', 'cerebras_model', 'mistral_model', 'nvidia_model', 'google_model', 'openrouter_model',
+            'task_ai_provider', 'task_selected_model', 'task_ai_enabled', 'performance_settings', 'ai_max_tokens', 'selected_model',
+            'task_groq_model', 'task_cerebras_model', 'task_mistral_model', 'task_nvidia_model', 'task_google_model', 'task_openrouter_model'
+        ];
+        legacyGlobalKeys.forEach(key => localStorage.removeItem(key));
+
+        // Dynamic sweep for any remaining legacy max_tokens_* keys (global)
+        const dynamicGlobalKeys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            // If it's a global max_tokens key (no prefix and doesn't contain a username separator)
+            if (key && key.startsWith('max_tokens_')) {
+                dynamicGlobalKeys.push(key);
+            }
+        }
+        dynamicGlobalKeys.forEach(key => localStorage.removeItem(key));
     }
     localStorage.removeItem(CURRENT_USER_KEY);
 };
@@ -130,17 +162,17 @@ export const logout = () => {
 // LIBRARY (Formerly Watchlist) Management
 export const getUserLibrary = (username) => {
     if (!username) return [];
-    const data = localStorage.getItem(`${username}_library`);
+    const data = localStorage.getItem(resolveUserKey('library', username));
     if (data) {
         return JSON.parse(data);
     }
 
     // Migration: Check for old '_watchlist' key
-    const oldData = localStorage.getItem(`${username}_watchlist`);
+    const oldData = localStorage.getItem(resolveUserKey('watchlist', username));
     if (oldData) {
         const parsed = JSON.parse(oldData);
         saveUserLibrary(username, parsed); // Save to new key
-        localStorage.removeItem(`${username}_watchlist`); // Optional: Clean up old key
+        localStorage.removeItem(resolveUserKey('watchlist', username)); // Optional: Clean up old key
         return parsed;
     }
     return [];
@@ -148,13 +180,13 @@ export const getUserLibrary = (username) => {
 
 export const saveUserLibrary = (username, library) => {
     if (!username) return;
-    localStorage.setItem(`${username}_library`, JSON.stringify(library));
+    localStorage.setItem(resolveUserKey('library', username), JSON.stringify(library));
 };
 
 // WATCHLIST (Formerly Wishlist) Management
 export const getUserWatchlist = (username) => {
     if (!username) return [];
-    const data = localStorage.getItem(`${username}_watchlist`);
+    const data = localStorage.getItem(resolveUserKey('watchlist', username));
     // Note: If we just migrated '_watchlist' to '_library', this key might be empty or contain old library data if we didn't clear it.
     // Actually, 'wishlist' became 'watchlist'.
     // So we check `${username}_watchlist` (new key). 
@@ -182,11 +214,11 @@ export const getUserWatchlist = (username) => {
     }
 
     // Migration: Check for old '_wishlist' key
-    const oldData = localStorage.getItem(`${username}_wishlist`);
+    const oldData = localStorage.getItem(resolveUserKey('wishlist', username));
     if (oldData) {
         const parsed = JSON.parse(oldData);
         saveUserWatchlist(username, parsed);
-        localStorage.removeItem(`${username}_wishlist`);
+        localStorage.removeItem(resolveUserKey('wishlist', username));
         return parsed;
     }
     return [];
@@ -194,26 +226,26 @@ export const getUserWatchlist = (username) => {
 
 export const saveUserWatchlist = (username, watchlist) => {
     if (!username) return;
-    localStorage.setItem(`${username}_watchlist`, JSON.stringify(watchlist));
+    localStorage.setItem(resolveUserKey('watchlist', username), JSON.stringify(watchlist));
 };
 
 // Get user's recommendations
 export const getUserRecommendations = (username) => {
     if (!username) return [];
-    const data = localStorage.getItem(`${username}_recommendations`);
+    const data = localStorage.getItem(resolveUserKey('recommendations', username));
     return data ? JSON.parse(data) : [];
 };
 
 // Save user's recommendations
 export const saveUserRecommendations = (username, recommendations) => {
     if (!username) return;
-    localStorage.setItem(`${username}_recommendations`, JSON.stringify(recommendations));
+    localStorage.setItem(resolveUserKey('recommendations', username), JSON.stringify(recommendations));
 };
 
 // Custom Instructions Management
 export const getUserInstructions = (username) => {
     if (!username) return [];
-    const data = localStorage.getItem(`${username}_custom_instructions`);
+    const data = localStorage.getItem(resolveUserKey('custom_instructions', username));
     try {
         return data ? JSON.parse(data) : [];
     } catch (e) {
@@ -224,19 +256,19 @@ export const getUserInstructions = (username) => {
 
 export const saveUserInstructions = (username, instructions) => {
     if (!username) return;
-    localStorage.setItem(`${username}_custom_instructions`, JSON.stringify(instructions));
+    localStorage.setItem(resolveUserKey('custom_instructions', username), JSON.stringify(instructions));
 };
 
 // Excluded Items Management
 export const getUserExcluded = (username) => {
     if (!username) return [];
-    const data = localStorage.getItem(`${username}_excluded`);
+    const data = localStorage.getItem(resolveUserKey('excluded', username));
     return data ? JSON.parse(data) : [];
 };
 
 export const saveUserExcluded = (username, excluded) => {
     if (!username) return;
-    localStorage.setItem(`${username}_excluded`, JSON.stringify(excluded));
+    localStorage.setItem(resolveUserKey('excluded', username), JSON.stringify(excluded));
 };
 
 export const deleteUser = (username) => {

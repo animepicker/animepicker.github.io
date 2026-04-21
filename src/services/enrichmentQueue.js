@@ -12,17 +12,18 @@ import {
     saveUserWatchlist,
     getUserRecommendations, 
     saveUserRecommendations,
-    getUserInstructions 
+    getUserInstructions,
+    resolveUserKey
 } from './authService';
 
-const ENRICHMENT_QUEUE_KEY = 'anime_enrichment_queue';
+const getQueueKey = () => resolveUserKey('anime_enrichment_queue');
 const MAX_JOB_ATTEMPTS = 3;
 const JOB_RETRY_DELAY = 60000; // 1 minute between retries
 
 // Helper to get queue from localStorage
 const getQueue = () => {
     try {
-        const stored = localStorage.getItem(ENRICHMENT_QUEUE_KEY);
+        const stored = localStorage.getItem(getQueueKey());
         if (!stored) return [];
         return JSON.parse(stored);
     } catch (e) {
@@ -34,7 +35,7 @@ const getQueue = () => {
 // Helper to save queue to localStorage
 const saveQueue = (queue) => {
     try {
-        localStorage.setItem(ENRICHMENT_QUEUE_KEY, JSON.stringify(queue));
+        localStorage.setItem(getQueueKey(), JSON.stringify(queue));
     } catch (e) {
         console.warn('Failed to save enrichment queue:', e);
     }
@@ -183,20 +184,20 @@ export const processQueue = async () => {
                 // Check if demographics are still missing
 
                 // Get user's selected AI provider from localStorage
-                let aiProvider = localStorage.getItem('ai_provider') || 'openrouter';
+                let aiProvider = localStorage.getItem(resolveUserKey('ai_provider')) || 'openrouter';
                 let modelOverride = null;
 
                 // Check if utility AI is enabled
-                const taskAiEnabled = localStorage.getItem('task_ai_enabled') === 'true';
+                const taskAiEnabled = localStorage.getItem(resolveUserKey('task_ai_enabled')) === 'true';
                 if (taskAiEnabled) {
-                    const taskAiProvider = localStorage.getItem('task_ai_provider');
+                    const taskAiProvider = localStorage.getItem(resolveUserKey('task_ai_provider'));
                     if (taskAiProvider) {
                         aiProvider = taskAiProvider;
-                        modelOverride = localStorage.getItem(`task_${taskAiProvider}_model`);
+                        modelOverride = localStorage.getItem(resolveUserKey(`task_${taskAiProvider}_model`));
                     }
                 }
 
-                const apiKey = localStorage.getItem(`${aiProvider}_api_key`) || '';
+                const apiKey = localStorage.getItem(resolveUserKey(`${aiProvider}_api_key`)) || '';
 
                 // Get custom instructions for the current user, filtered to [ALWAYS] instructions
                 const currentUsername = localStorage.getItem('anime_current_user');

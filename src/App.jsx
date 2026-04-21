@@ -40,7 +40,8 @@ import {
     saveUserExcluded,
     loginWithGoogle,
     linkGoogleToEmail,
-    getCurrentUser as getStoredUser
+    getCurrentUser as getStoredUser,
+    resolveUserKey
 } from './services/authService';
 import {
     ensureSubsystems,
@@ -69,38 +70,38 @@ const RECOMMENDATION_DEFAULT_INSTRUCTION = "Identify the most common demographic
 const TABS = ['recommendations', 'watchlist', 'library'];
 
 function App() {
-    const [aiProvider, setAiProvider] = useState(localStorage.getItem('ai_provider') || 'cerebras');
-    const [apiKey, setApiKey] = useState(localStorage.getItem('openrouter_api_key') || '');
-    const [groqApiKey, setGroqApiKey] = useState(localStorage.getItem('groq_api_key') || '');
-    const [cerebrasApiKey, setCerebrasApiKey] = useState(localStorage.getItem('cerebras_api_key') || '');
-    const [mistralApiKey, setMistralApiKey] = useState(localStorage.getItem('mistral_api_key') || '');
-    const [nvidiaApiKey, setNvidiaApiKey] = useState(localStorage.getItem('nvidia_api_key') || '');
-    const [googleApiKey, setGoogleApiKey] = useState(localStorage.getItem('google_api_key') || '');
+    const [aiProvider, setAiProvider] = useState(() => localStorage.getItem(resolveUserKey('ai_provider')) || localStorage.getItem('ai_provider') || 'cerebras');
+    const [apiKey, setApiKey] = useState(() => localStorage.getItem(resolveUserKey('openrouter_api_key')) || localStorage.getItem('openrouter_api_key') || '');
+    const [groqApiKey, setGroqApiKey] = useState(() => localStorage.getItem(resolveUserKey('groq_api_key')) || localStorage.getItem('groq_api_key') || '');
+    const [cerebrasApiKey, setCerebrasApiKey] = useState(() => localStorage.getItem(resolveUserKey('cerebras_api_key')) || localStorage.getItem('cerebras_api_key') || '');
+    const [mistralApiKey, setMistralApiKey] = useState(() => localStorage.getItem(resolveUserKey('mistral_api_key')) || localStorage.getItem('mistral_api_key') || '');
+    const [nvidiaApiKey, setNvidiaApiKey] = useState(() => localStorage.getItem(resolveUserKey('nvidia_api_key')) || localStorage.getItem('nvidia_api_key') || '');
+    const [googleApiKey, setGoogleApiKey] = useState(() => localStorage.getItem(resolveUserKey('google_api_key')) || localStorage.getItem('google_api_key') || '');
     const [selectedModel, setSelectedModel] = useState(() => {
-        const provider = localStorage.getItem('ai_provider') || 'openrouter';
+        const provider = localStorage.getItem(resolveUserKey('ai_provider')) || localStorage.getItem('ai_provider') || 'openrouter';
         if (provider === 'groq') {
-            const saved = localStorage.getItem('groq_model');
+            const saved = localStorage.getItem(resolveUserKey('groq_model')) || localStorage.getItem('groq_model');
             return saved ? saved : DEFAULT_GROQ_MODEL;
         }
         if (provider === 'cerebras') {
-            const saved = localStorage.getItem('cerebras_model');
+            const saved = localStorage.getItem(resolveUserKey('cerebras_model')) || localStorage.getItem('cerebras_model');
             return saved ? saved : DEFAULT_CEREBRAS_MODEL;
         }
         if (provider === 'mistral') {
-            const saved = localStorage.getItem('mistral_model');
+            const saved = localStorage.getItem(resolveUserKey('mistral_model')) || localStorage.getItem('mistral_model');
             return saved ? saved : DEFAULT_MISTRAL_MODEL;
         }
         if (provider === 'nvidia') {
-            const saved = localStorage.getItem('nvidia_model');
+            const saved = localStorage.getItem(resolveUserKey('nvidia_model')) || localStorage.getItem('nvidia_model');
             return saved ? saved : DEFAULT_NVIDIA_MODEL;
         }
         if (provider === 'google') {
-            const saved = localStorage.getItem('google_model');
+            const saved = localStorage.getItem(resolveUserKey('google_model')) || localStorage.getItem('google_model');
             return saved ? saved : DEFAULT_GOOGLE_MODEL;
         }
 
         // Handle custom providers
-        const customProvidersRaw = localStorage.getItem('custom_providers');
+        const customProvidersRaw = localStorage.getItem(resolveUserKey('custom_providers')) || localStorage.getItem('custom_providers');
         if (customProvidersRaw) {
             try {
                 const customs = JSON.parse(customProvidersRaw);
@@ -113,11 +114,11 @@ function App() {
             }
         }
 
-        return localStorage.getItem('openrouter_model') || DEFAULT_OPENROUTER_MODEL;
+        return localStorage.getItem(resolveUserKey('openrouter_model')) || localStorage.getItem('openrouter_model') || DEFAULT_OPENROUTER_MODEL;
     });
-    const [taskAiEnabled, setTaskAiEnabled] = useState(localStorage.getItem('task_ai_enabled') === 'true');
-    const [taskAiProvider, setTaskAiProvider] = useState(() => localStorage.getItem('task_ai_provider') || '');
-    const [taskSelectedModel, setTaskSelectedModel] = useState(() => localStorage.getItem('task_selected_model') || '');
+    const [taskAiEnabled, setTaskAiEnabled] = useState(() => (localStorage.getItem(resolveUserKey('task_ai_enabled')) || localStorage.getItem('task_ai_enabled')) === 'true');
+    const [taskAiProvider, setTaskAiProvider] = useState(() => localStorage.getItem(resolveUserKey('task_ai_provider')) || localStorage.getItem('task_ai_provider') || '');
+    const [taskSelectedModel, setTaskSelectedModel] = useState(() => localStorage.getItem(resolveUserKey('task_selected_model')) || localStorage.getItem('task_selected_model') || '');
 
     const effectiveTaskAiProvider = taskAiProvider || aiProvider;
     
@@ -126,13 +127,13 @@ function App() {
         if (taskSelectedModel) return taskSelectedModel;
         
         const p = effectiveTaskAiProvider;
-        if (p === 'groq') return localStorage.getItem('task_groq_model') || DEFAULT_GROQ_MODEL;
-        if (p === 'cerebras') return localStorage.getItem('task_cerebras_model') || DEFAULT_CEREBRAS_MODEL;
-        if (p === 'mistral') return localStorage.getItem('task_mistral_model') || DEFAULT_MISTRAL_MODEL;
-        if (p === 'nvidia') return localStorage.getItem('task_nvidia_model') || DEFAULT_NVIDIA_MODEL;
-        if (p === 'google') return localStorage.getItem('task_google_model') || DEFAULT_GOOGLE_MODEL;
+        if (p === 'groq') return localStorage.getItem(resolveUserKey('task_groq_model')) || localStorage.getItem('task_groq_model') || DEFAULT_GROQ_MODEL;
+        if (p === 'cerebras') return localStorage.getItem(resolveUserKey('task_cerebras_model')) || localStorage.getItem('task_cerebras_model') || DEFAULT_CEREBRAS_MODEL;
+        if (p === 'mistral') return localStorage.getItem(resolveUserKey('task_mistral_model')) || localStorage.getItem('task_mistral_model') || DEFAULT_MISTRAL_MODEL;
+        if (p === 'nvidia') return localStorage.getItem(resolveUserKey('task_nvidia_model')) || localStorage.getItem('task_nvidia_model') || DEFAULT_NVIDIA_MODEL;
+        if (p === 'google') return localStorage.getItem(resolveUserKey('task_google_model')) || localStorage.getItem('task_google_model') || DEFAULT_GOOGLE_MODEL;
         
-        const customsRaw = localStorage.getItem('custom_providers');
+        const customsRaw = localStorage.getItem(resolveUserKey('custom_providers')) || localStorage.getItem('custom_providers');
         if (customsRaw) {
             try {
                 const customs = JSON.parse(customsRaw);
@@ -141,7 +142,7 @@ function App() {
             } catch (e) {}
         }
         
-        return localStorage.getItem('task_openrouter_model') || DEFAULT_OPENROUTER_MODEL;
+        return localStorage.getItem(resolveUserKey('task_openrouter_model')) || localStorage.getItem('task_openrouter_model') || DEFAULT_OPENROUTER_MODEL;
     }, [taskSelectedModel, effectiveTaskAiProvider]);
 
     const effectiveTaskSelectedModel = getTaskSelectedModel();
@@ -173,7 +174,7 @@ function App() {
     const [generatingRecItems, setGeneratingRecItems] = useState([]);
     const [activeTab, setActiveTab] = useState('recommendations');
     const [performanceSettings, setPerformanceSettings] = useState(() => {
-        const saved = localStorage.getItem('performance_settings');
+        const saved = localStorage.getItem(resolveUserKey('performance_settings')) || localStorage.getItem('performance_settings');
         return saved ? JSON.parse(saved) : { enableBlur: false, enhancedMotion: false };
     });
     const [showScrollTop, setShowScrollTop] = useState(false);
@@ -211,7 +212,7 @@ function App() {
         google: []
     });
     const [customProviders, setCustomProviders] = useState(() => {
-        const saved = localStorage.getItem('custom_providers');
+        const saved = localStorage.getItem(resolveUserKey('custom_providers')) || localStorage.getItem('custom_providers');
         return saved ? JSON.parse(saved) : [];
     });
     const [isLoadingModels, setIsLoadingModels] = useState({
@@ -483,38 +484,97 @@ function App() {
         }
     }, [currentUser]);
 
+    // Migration: Move global AI keys to per-user isolated storage
     useEffect(() => {
-        localStorage.setItem('performance_settings', JSON.stringify(performanceSettings));
+        if (!currentUser) return;
+        const username = currentUser.username || currentUser;
+        if (!username) return;
+
+        const globalKeysToMigrate = [
+            'ai_provider', 'openrouter_api_key', 'groq_api_key', 'cerebras_api_key',
+            'mistral_api_key', 'nvidia_api_key', 'google_api_key', 'custom_providers',
+            'groq_model', 'cerebras_model', 'mistral_model', 'nvidia_model', 'google_model', 'openrouter_model',
+            'task_ai_provider', 'task_selected_model', 'task_ai_enabled', 'performance_settings', 'ai_max_tokens', 'selected_model',
+            'task_groq_model', 'task_cerebras_model', 'task_mistral_model', 'task_nvidia_model', 'task_google_model', 'task_openrouter_model'
+        ];
+
+        let migratedCount = 0;
+
+        // 1. Static Key Migration
+        globalKeysToMigrate.forEach(key => {
+            const globalValue = localStorage.getItem(key);
+            const userKey = `${username}_${key}`;
+            const userValue = localStorage.getItem(userKey);
+
+            // If global exists and user-specific doesn't, migrate it
+            if (globalValue !== null && userValue === null) {
+                localStorage.setItem(userKey, globalValue);
+                localStorage.removeItem(key);
+                migratedCount++;
+            } else if (globalValue !== null && userValue !== null) {
+                // If both exist, just clear the global one to harden storage
+                localStorage.removeItem(key);
+            }
+        });
+
+        // 2. Dynamic Key Migration (max_tokens_*)
+        const dynamicKeys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('max_tokens_') && !key.startsWith(`${username}_`)) {
+                dynamicKeys.push(key);
+            }
+        }
+
+        dynamicKeys.forEach(key => {
+            const globalValue = localStorage.getItem(key);
+            const userKey = `${username}_${key}`;
+            if (localStorage.getItem(userKey) === null) {
+                localStorage.setItem(userKey, globalValue);
+            }
+            localStorage.removeItem(key);
+            migratedCount++;
+        });
+
+        if (migratedCount > 0) {
+            console.log(`Migrated ${migratedCount} settings to user isolated storage.`);
+        }
+    }, [currentUser]);
+
+    useEffect(() => {
+        localStorage.setItem(resolveUserKey('performance_settings'), JSON.stringify(performanceSettings));
         if (currentUser && !isLoadingLibrary.current) {
-            markLocalChange('performanceSettings');
+            markLocalChange('performance_settings');
         }
     }, [performanceSettings, currentUser, markLocalChange]);
 
     useEffect(() => {
-        localStorage.setItem('custom_providers', JSON.stringify(customProviders));
+        localStorage.setItem(resolveUserKey('custom_providers'), JSON.stringify(customProviders));
         if (currentUser && !isLoadingLibrary.current) {
-            markLocalChange('customProviders');
+            markLocalChange('custom_providers');
         }
     }, [customProviders, currentUser, markLocalChange]);
 
     useEffect(() => {
-        localStorage.setItem('task_ai_enabled', taskAiEnabled ? 'true' : 'false');
+        localStorage.setItem(resolveUserKey('task_ai_enabled'), taskAiEnabled ? 'true' : 'false');
     }, [taskAiEnabled]);
 
     useEffect(() => {
         if (taskAiProvider) {
-            localStorage.setItem('task_ai_provider', taskAiProvider);
+            localStorage.setItem(resolveUserKey('task_ai_provider'), taskAiProvider);
         }
     }, [taskAiProvider]);
 
     useEffect(() => {
-        if (taskSelectedModel && taskAiProvider) {
-            if (taskAiProvider === 'openrouter') localStorage.setItem('task_openrouter_model', taskSelectedModel);
-            else if (taskAiProvider === 'groq') localStorage.setItem('task_groq_model', taskSelectedModel);
-            else if (taskAiProvider === 'cerebras') localStorage.setItem('task_cerebras_model', taskSelectedModel);
-            else if (taskAiProvider === 'mistral') localStorage.setItem('task_mistral_model', taskSelectedModel);
-            else if (taskAiProvider === 'nvidia') localStorage.setItem('task_nvidia_model', taskSelectedModel);
-            else if (taskAiProvider === 'google') localStorage.setItem('task_google_model', taskSelectedModel);
+        if (taskSelectedModel) {
+            if (taskAiProvider === 'openrouter') localStorage.setItem(resolveUserKey('task_openrouter_model'), taskSelectedModel);
+            else if (taskAiProvider === 'groq') localStorage.setItem(resolveUserKey('task_groq_model'), taskSelectedModel);
+            else if (taskAiProvider === 'cerebras') localStorage.setItem(resolveUserKey('task_cerebras_model'), taskSelectedModel);
+            else if (taskAiProvider === 'mistral') localStorage.setItem(resolveUserKey('task_mistral_model'), taskSelectedModel);
+            else if (taskAiProvider === 'nvidia') localStorage.setItem(resolveUserKey('task_nvidia_model'), taskSelectedModel);
+            else if (taskAiProvider === 'google') localStorage.setItem(resolveUserKey('task_google_model'), taskSelectedModel);
+            
+            localStorage.setItem(resolveUserKey('task_selected_model'), taskSelectedModel);
         }
     }, [taskSelectedModel, taskAiProvider]);
 
@@ -1353,6 +1413,21 @@ function App() {
         scrollPositions.current = { library: 0, recommendations: 0 };
         setShowLogoutConfirm(false);
         setShowUserMenu(false);
+        
+        // Reset AI state variables
+        setAiProvider('cerebras');
+        setApiKey('');
+        setGroqApiKey('');
+        setCerebrasApiKey('');
+        setMistralApiKey('');
+        setNvidiaApiKey('');
+        setGoogleApiKey('');
+        setCustomProviders([]);
+        setSelectedModel(DEFAULT_CEREBRAS_MODEL);
+        setTaskAiEnabled(false);
+        setTaskAiProvider('');
+        setTaskSelectedModel('');
+
         toast.info("Logged out successfully.");
     };
 
@@ -2981,11 +3056,12 @@ function App() {
 
     const handleRefreshModels = async (providerToRefresh) => {
         // Safe check for keys before fetching (except OpenRouter which is often free)
-        let key = localStorage.getItem(`${providerToRefresh}_api_key`);
+        let key = localStorage.getItem(resolveUserKey(`${providerToRefresh}_api_key`)) || localStorage.getItem(`${providerToRefresh}_api_key`);
 
         // If not found in standard keys, check custom providers
         if (!key) {
-            const customs = JSON.parse(localStorage.getItem('custom_providers') || '[]');
+            const customsRaw = localStorage.getItem(resolveUserKey('custom_providers')) || localStorage.getItem('custom_providers') || '[]';
+            const customs = JSON.parse(customsRaw);
             const custom = customs.find(p => p.id === providerToRefresh);
             if (custom) key = custom.apiKey;
         }
@@ -2997,18 +3073,18 @@ function App() {
         setIsLoadingModels(prev => ({ ...prev, [providerToRefresh]: true }));
         try {
             const apiKeys = {
-                groq: localStorage.getItem('groq_api_key'),
-                cerebras: localStorage.getItem('cerebras_api_key'),
-                mistral: localStorage.getItem('mistral_api_key'),
-                nvidia: localStorage.getItem('nvidia_api_key'),
-                google: localStorage.getItem('google_api_key')
+                groq: localStorage.getItem(resolveUserKey('groq_api_key')) || localStorage.getItem('groq_api_key'),
+                cerebras: localStorage.getItem(resolveUserKey('cerebras_api_key')) || localStorage.getItem('cerebras_api_key'),
+                mistral: localStorage.getItem(resolveUserKey('mistral_api_key')) || localStorage.getItem('mistral_api_key'),
+                nvidia: localStorage.getItem(resolveUserKey('nvidia_api_key')) || localStorage.getItem('nvidia_api_key'),
+                google: localStorage.getItem(resolveUserKey('google_api_key')) || localStorage.getItem('google_api_key')
             };
             const models = await fetchModels(providerToRefresh, apiKeys);
             setAllProvidersModels(prev => ({ ...prev, [providerToRefresh]: models || [] }));
         } catch (error) {
             let providerName = providerToRefresh;
             if (providerToRefresh.startsWith('custom-')) {
-                const customs = JSON.parse(localStorage.getItem('custom_providers') || '[]');
+                const customs = JSON.parse(localStorage.getItem(resolveUserKey('custom_providers')) || localStorage.getItem('custom_providers') || '[]');
                 const custom = customs.find(p => p.id === providerToRefresh);
                 if (custom) providerName = custom.name || providerToRefresh;
             }
@@ -3123,25 +3199,26 @@ function App() {
                                 aiProvider={aiProvider}
                                 setAiProvider={(p) => {
                                     setAiProvider(p);
-                                    localStorage.setItem('ai_provider', p);
+                                    localStorage.setItem(resolveUserKey('ai_provider'), p);
+                                    setUserMenuInitialView('main');
 
                                     // Also update selectedModel to match the new provider
                                     let newModel = '';
                                     if (p === 'groq') {
-                                        newModel = localStorage.getItem('groq_model') || DEFAULT_GROQ_MODEL;
+                                        newModel = localStorage.getItem(resolveUserKey('groq_model')) || localStorage.getItem('groq_model') || DEFAULT_GROQ_MODEL;
                                     } else if (p === 'cerebras') {
-                                        newModel = localStorage.getItem('cerebras_model') || DEFAULT_CEREBRAS_MODEL;
+                                        newModel = localStorage.getItem(resolveUserKey('cerebras_model')) || localStorage.getItem('cerebras_model') || DEFAULT_CEREBRAS_MODEL;
                                     } else if (p === 'mistral') {
-                                        newModel = localStorage.getItem('mistral_model') || DEFAULT_MISTRAL_MODEL;
+                                        newModel = localStorage.getItem(resolveUserKey('mistral_model')) || localStorage.getItem('mistral_model') || DEFAULT_MISTRAL_MODEL;
                                     } else if (p === 'nvidia') {
-                                        newModel = localStorage.getItem('nvidia_model') || DEFAULT_NVIDIA_MODEL;
+                                        newModel = localStorage.getItem(resolveUserKey('nvidia_model')) || localStorage.getItem('nvidia_model') || DEFAULT_NVIDIA_MODEL;
                                     } else if (p === 'google') {
-                                        newModel = localStorage.getItem('google_model') || DEFAULT_GOOGLE_MODEL;
+                                        newModel = localStorage.getItem(resolveUserKey('google_model')) || localStorage.getItem('google_model') || DEFAULT_GOOGLE_MODEL;
                                     } else if (p === 'openrouter') {
-                                        newModel = localStorage.getItem('openrouter_model') || DEFAULT_OPENROUTER_MODEL;
+                                        newModel = localStorage.getItem(resolveUserKey('openrouter_model')) || localStorage.getItem('openrouter_model') || DEFAULT_OPENROUTER_MODEL;
                                     } else {
                                         // Custom providers
-                                        const customs = JSON.parse(localStorage.getItem('custom_providers') || '[]');
+                                        const customs = JSON.parse(localStorage.getItem(resolveUserKey('custom_providers')) || localStorage.getItem('custom_providers') || '[]');
                                         const current = customs.find(c => c.id === p);
                                         if (current && current.model) newModel = current.model;
                                     }
@@ -3208,22 +3285,22 @@ function App() {
                                 taskAiEnabled={taskAiEnabled}
                                 setTaskAiEnabled={(enabled) => {
                                     setTaskAiEnabled(enabled);
-                                    localStorage.setItem('task_ai_enabled', enabled ? 'true' : 'false');
+                                    localStorage.setItem(resolveUserKey('task_ai_enabled'), enabled ? 'true' : 'false');
                                 }}
                                 taskAiProvider={effectiveTaskAiProvider}
                                 setTaskAiProvider={(p) => {
                                     setTaskAiProvider(p);
-                                    localStorage.setItem('task_ai_provider', p);
+                                    localStorage.setItem(resolveUserKey('task_ai_provider'), p);
                                     
                                     let newModel = '';
-                                    if (p === 'groq') newModel = localStorage.getItem('task_groq_model') || DEFAULT_GROQ_MODEL;
-                                    else if (p === 'cerebras') newModel = localStorage.getItem('task_cerebras_model') || DEFAULT_CEREBRAS_MODEL;
-                                    else if (p === 'mistral') newModel = localStorage.getItem('task_mistral_model') || DEFAULT_MISTRAL_MODEL;
-                                    else if (p === 'nvidia') newModel = localStorage.getItem('task_nvidia_model') || DEFAULT_NVIDIA_MODEL;
-                                    else if (p === 'google') newModel = localStorage.getItem('task_google_model') || DEFAULT_GOOGLE_MODEL;
-                                    else if (p === 'openrouter') newModel = localStorage.getItem('task_openrouter_model') || DEFAULT_OPENROUTER_MODEL;
+                                    if (p === 'groq') newModel = localStorage.getItem(resolveUserKey('task_groq_model')) || localStorage.getItem('task_groq_model') || DEFAULT_GROQ_MODEL;
+                                    else if (p === 'cerebras') newModel = localStorage.getItem(resolveUserKey('task_cerebras_model')) || localStorage.getItem('task_cerebras_model') || DEFAULT_CEREBRAS_MODEL;
+                                    else if (p === 'mistral') newModel = localStorage.getItem(resolveUserKey('task_mistral_model')) || localStorage.getItem('task_mistral_model') || DEFAULT_MISTRAL_MODEL;
+                                    else if (p === 'nvidia') newModel = localStorage.getItem(resolveUserKey('task_nvidia_model')) || localStorage.getItem('task_nvidia_model') || DEFAULT_NVIDIA_MODEL;
+                                    else if (p === 'google') newModel = localStorage.getItem(resolveUserKey('task_google_model')) || localStorage.getItem('task_google_model') || DEFAULT_GOOGLE_MODEL;
+                                    else if (p === 'openrouter') newModel = localStorage.getItem(resolveUserKey('task_openrouter_model')) || localStorage.getItem('task_openrouter_model') || DEFAULT_OPENROUTER_MODEL;
                                     else {
-                                        const customs = JSON.parse(localStorage.getItem('custom_providers') || '[]');
+                                        const customs = JSON.parse(localStorage.getItem(resolveUserKey('custom_providers')) || localStorage.getItem('custom_providers') || '[]');
                                         const current = customs.find(c => c.id === p);
                                         if (current && current.model) newModel = current.model;
                                     }
@@ -3232,7 +3309,7 @@ function App() {
                                 taskSelectedModel={effectiveTaskSelectedModel}
                                 setTaskSelectedModel={(m) => {
                                     setTaskSelectedModel(m);
-                                    localStorage.setItem('task_selected_model', m);
+                                    localStorage.setItem(resolveUserKey('task_selected_model'), m);
                                 }}
                             />
                         </motion.div>
