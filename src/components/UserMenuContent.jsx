@@ -29,6 +29,26 @@ const InfoBox = ({ children, className = "" }) => (
     </div>
 );
 
+// Standardized top informational box for sub-views
+const SectionIntro = ({ children, color = "violet", className = "" }) => {
+    const themes = {
+        violet: "bg-violet-500/5 border-violet-500/10 text-violet-300/80",
+        emerald: "bg-emerald-500/5 border-emerald-500/10 text-emerald-300/80",
+        pink: "bg-pink-500/5 border-pink-500/10 text-pink-300/80",
+        red: "bg-red-500/5 border-red-500/10 text-red-400/80",
+        blue: "bg-blue-500/5 border-blue-500/10 text-blue-300/80",
+        amber: "bg-amber-500/5 border-amber-500/10 text-amber-300/80",
+    };
+    const themeClass = themes[color] || themes.violet;
+    return (
+        <div className={`${themeClass} border rounded-2xl p-4 ${className}`}>
+            <p className="text-xs leading-relaxed font-medium">
+                {children}
+            </p>
+        </div>
+    );
+};
+
 export default function UserMenuContent({
     currentUser,
     onLogout,
@@ -1469,11 +1489,9 @@ export default function UserMenuContent({
                             <MenuHeader title="Instructions" />
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                                 <div className="space-y-6">
-                                    <div className="bg-pink-500/5 border border-pink-500/10 rounded-2xl p-4">
-                                        <p className="text-xs text-pink-300/80 leading-relaxed font-medium">
-                                            These instructions will be sent to the AI whenever you generate new picks or request details.
-                                        </p>
-                                    </div>
+                                    <SectionIntro color="pink">
+                                        These instructions will be sent to the AI whenever you generate new picks or request details.
+                                    </SectionIntro>
 
                                     <div className="space-y-3 mb-8">
                                         {customInstructions.length === 0 ? (
@@ -1643,48 +1661,50 @@ export default function UserMenuContent({
                         >
                             <MenuHeader title="Regenerate Info" />
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                                <p className="text-sm text-gray-400 mb-6 font-medium">
-                                    Select which collection you want to update with AI-generated details.
-                                </p>
+                                <div className="space-y-6">
+                                    <SectionIntro>
+                                        Select which collection you want to update with AI-generated details.
+                                    </SectionIntro>
 
-                                <div className="space-y-3">
-                                    <button
-                                        onClick={() => {
-                                            setRegenTarget('watchlist');
-                                            setCurrentView('regen_options');
-                                        }}
-                                        className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 hover:border-violet-500/40 transition-all group"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-400">
-                                                <Heart size={20} />
+                                    <div className="space-y-3">
+                                        <button
+                                            onClick={() => {
+                                                setRegenTarget('watchlist');
+                                                setCurrentView('regen_options');
+                                            }}
+                                            className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 hover:border-violet-500/40 transition-all group"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-400">
+                                                    <Heart size={20} />
+                                                </div>
+                                                <div className="text-left">
+                                                    <div className="font-bold text-sm">Watchlist</div>
+                                                    <div className="text-xs text-gray-500 mt-0.5">{watchlist.length} items</div>
+                                                </div>
                                             </div>
-                                            <div className="text-left">
-                                                <div className="font-bold text-sm">Watchlist</div>
-                                                <div className="text-xs text-gray-500 mt-0.5">{watchlist.length} items</div>
-                                            </div>
-                                        </div>
-                                        <ArrowUp size={16} className="rotate-90 text-gray-600 group-hover:text-violet-400 transition-colors" />
-                                    </button>
+                                            <ArrowUp size={16} className="rotate-90 text-gray-600 group-hover:text-violet-400 transition-colors" />
+                                        </button>
 
-                                    <button
-                                        onClick={() => {
-                                            setRegenTarget('library');
-                                            setCurrentView('regen_options');
-                                        }}
-                                        className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 hover:border-violet-500/40 transition-all group"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center text-violet-400">
-                                                <LayoutGrid size={20} />
+                                        <button
+                                            onClick={() => {
+                                                setRegenTarget('library');
+                                                setCurrentView('regen_options');
+                                            }}
+                                            className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 hover:border-violet-500/40 transition-all group"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center text-violet-400">
+                                                    <LayoutGrid size={20} />
+                                                </div>
+                                                <div className="text-left">
+                                                    <div className="font-bold text-sm">Library</div>
+                                                    <div className="text-xs text-gray-500 mt-0.5">{library.length} items</div>
+                                                </div>
                                             </div>
-                                            <div className="text-left">
-                                                <div className="font-bold text-sm">Library</div>
-                                                <div className="text-xs text-gray-500 mt-0.5">{library.length} items</div>
-                                            </div>
-                                        </div>
-                                        <ArrowUp size={16} className="rotate-90 text-gray-600 group-hover:text-violet-400 transition-colors" />
-                                    </button>
+                                            <ArrowUp size={16} className="rotate-90 text-gray-600 group-hover:text-violet-400 transition-colors" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>
@@ -1706,36 +1726,38 @@ export default function UserMenuContent({
                                 onBack={() => setCurrentView('regen')}
                             />
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                                <p className="text-sm text-gray-400 mb-6">
-                                    Use AI to generate plot summaries, genres, and release years for your items.
-                                </p>
+                                <div className="space-y-6">
+                                    <SectionIntro>
+                                        Use AI to generate plot summaries, genres, and release years for your items.
+                                    </SectionIntro>
 
-                                <div className="space-y-3">
-                                    <button
-                                        onClick={() => {
-                                            setRegenMode('all');
-                                            setCurrentView('regen_refresh_mode');
-                                        }}
-                                        className="w-full p-4 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-300 hover:bg-violet-600/40 hover:border-violet-500/50 transition-all text-left"
-                                    >
-                                        <div className="font-bold text-sm">Regenerate All</div>
-                                        <div className="text-xs text-violet-300/60 mt-1">
-                                            {(regenTarget === 'watchlist' ? watchlist : library).length} items will be updated
-                                        </div>
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setRegenMode('missing');
-                                            setCurrentView('regen_refresh_mode');
-                                        }}
-                                        disabled={(regenTarget === 'watchlist' ? watchlist : library).filter(item => !item.description || item.description === '').length === 0}
-                                        className="w-full p-4 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        <div className="font-bold text-sm">Generate Missing Only</div>
-                                        <div className="text-xs text-gray-500 mt-1">
-                                            {(regenTarget === 'watchlist' ? watchlist : library).filter(item => !item.description || item.description === '').length} items without info
-                                        </div>
-                                    </button>
+                                    <div className="space-y-3">
+                                        <button
+                                            onClick={() => {
+                                                setRegenMode('all');
+                                                setCurrentView('regen_refresh_mode');
+                                            }}
+                                            className="w-full p-4 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-300 hover:bg-violet-600/40 hover:border-violet-500/50 transition-all text-left"
+                                        >
+                                            <div className="font-bold text-sm">Regenerate All</div>
+                                            <div className="text-xs text-violet-300/60 mt-1">
+                                                {(regenTarget === 'watchlist' ? watchlist : library).length} items will be updated
+                                            </div>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setRegenMode('missing');
+                                                setCurrentView('regen_refresh_mode');
+                                            }}
+                                            disabled={(regenTarget === 'watchlist' ? watchlist : library).filter(item => !item.description || item.description === '').length === 0}
+                                            className="w-full p-4 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <div className="font-bold text-sm">Generate Missing Only</div>
+                                            <div className="text-xs text-gray-500 mt-1">
+                                                {(regenTarget === 'watchlist' ? watchlist : library).filter(item => !item.description || item.description === '').length} items without info
+                                            </div>
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="mt-8 pt-6 border-t border-white/5">
@@ -1766,40 +1788,42 @@ export default function UserMenuContent({
                                 onBack={() => setCurrentView('regen_options')}
                             />
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                                <p className="text-sm text-gray-400 mb-6 font-medium">
-                                    Choose how to refresh your <span className="text-white font-bold">{regenTarget === 'watchlist' ? 'Watchlist' : 'Library'}</span> items ({regenMode === 'all' ? 'All' : 'Missing Only'}).
-                                </p>
+                                <div className="space-y-6">
+                                    <SectionIntro>
+                                        Choose how to refresh your <span className="text-white font-bold">{regenTarget === 'watchlist' ? 'Watchlist' : 'Library'}</span> items ({regenMode === 'all' ? 'All' : 'Missing Only'}).
+                                    </SectionIntro>
 
-                                <div className="space-y-4">
-                                    <button
-                                        onClick={() => onRegen(regenMode, regenTarget, 'all')}
-                                        className="w-full p-4 rounded-xl text-left bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 transition-all group"
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center text-violet-400 group-hover:rotate-180 transition-transform duration-500">
-                                                <RefreshCw size={20} />
+                                    <div className="space-y-4">
+                                        <button
+                                            onClick={() => onRegen(regenMode, regenTarget, 'all')}
+                                            className="w-full p-4 rounded-xl text-left bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 transition-all group"
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center text-violet-400 group-hover:rotate-180 transition-transform duration-500">
+                                                    <RefreshCw size={20} />
+                                                </div>
+                                                <div>
+                                                    <div className="text-white font-bold text-sm">Refresh All Info</div>
+                                                    <div className="text-xs text-gray-500 mt-0.5">Full regeneration (genres, description, year)</div>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <div className="text-white font-bold text-sm">Refresh All Info</div>
-                                                <div className="text-xs text-gray-500 mt-0.5">Full regeneration (genres, description, year)</div>
-                                            </div>
-                                        </div>
-                                    </button>
+                                        </button>
 
-                                    <button
-                                        onClick={() => onRegen(regenMode, regenTarget, 'genres')}
-                                        className="w-full p-4 rounded-xl text-left bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all group"
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                                                <Tag size={20} />
+                                        <button
+                                            onClick={() => onRegen(regenMode, regenTarget, 'genres')}
+                                            className="w-full p-4 rounded-xl text-left bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all group"
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                                    <Tag size={20} />
+                                                </div>
+                                                <div>
+                                                    <div className="text-white font-bold text-sm">Refresh Genres Only</div>
+                                                    <div className="text-xs text-gray-500 mt-0.5">Update genres only, preserve other metadata</div>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <div className="text-white font-bold text-sm">Refresh Genres Only</div>
-                                                <div className="text-xs text-gray-500 mt-0.5">Update genres only, preserve other metadata</div>
-                                            </div>
-                                        </div>
-                                    </button>
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="mt-8 pt-6 border-t border-white/5">
@@ -1863,11 +1887,9 @@ export default function UserMenuContent({
                             <MenuHeader title="Watch Provider" onBack={() => setCurrentView('content_prefs')} />
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                                 <div className="space-y-6">
-                                    <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-4">
-                                        <p className="text-xs text-emerald-300/80 leading-relaxed font-medium">
-                                            Select your preferred platform for watching anime. This affects all "Watch" buttons across the application.
-                                        </p>
-                                    </div>
+                                    <SectionIntro color="emerald">
+                                        Select your preferred platform for watching anime. This affects all "Watch" buttons across the application.
+                                    </SectionIntro>
 
                                     <div className="space-y-2">
                                         {Object.values(WATCH_PROVIDERS).map((provider) => (
@@ -1912,9 +1934,9 @@ export default function UserMenuContent({
                         >
                             <MenuHeader title="Visual Effects" />
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
-                                <p className="text-sm text-gray-400">
+                                <SectionIntro>
                                     Customize the visual experience and optimize performance.
-                                </p>
+                                </SectionIntro>
 
                                 <div className="space-y-4">
                                     {/* Enhanced Motion */}
@@ -2159,11 +2181,9 @@ export default function UserMenuContent({
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
 
                                 <div className="space-y-6">
-                                    <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-4">
-                                        <p className="text-xs text-red-400/80 leading-relaxed">
-                                            These actions are destructive. Please proceed with caution. Data cleared or accounts deleted cannot be recovered.
-                                        </p>
-                                    </div>
+                                    <SectionIntro color="red">
+                                        These actions are destructive. Please proceed with caution. Data cleared or accounts deleted cannot be recovered.
+                                    </SectionIntro>
 
                                     <div className="space-y-4">
                                         <div className="space-y-2">
@@ -2225,11 +2245,9 @@ export default function UserMenuContent({
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
 
                                 <div className="space-y-6">
-                                    <div className="bg-violet-500/5 border border-violet-500/10 rounded-2xl p-4">
-                                        <p className="text-xs text-violet-300/80 leading-relaxed font-medium">
-                                            Manage your local data by exporting to a file or importing from a previous backup.
-                                        </p>
-                                    </div>
+                                    <SectionIntro>
+                                        Manage your local data by exporting to a file or importing from a previous backup.
+                                    </SectionIntro>
 
                                     <div className="space-y-4">
                                         <div className="space-y-2">
