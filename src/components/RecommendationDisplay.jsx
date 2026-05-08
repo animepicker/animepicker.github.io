@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PlayCircle, Image as ImageIcon, Heart, EyeOff, Sparkles, ArrowUpDown, ArrowUp, ArrowDown, X, Check, Plus, Calendar, Tag, Trash2, Search } from 'lucide-react';
 import { getAnimeImage } from '../services/jikanService';
 import { formatTags } from '../utils/tagUtils';
+import { WATCH_PROVIDERS } from '../utils/watchProviders';
 
-const RecommendationCard = memo(({ rec, index, onWatched, onRemove, onRemovePick, isInLibrary, isInWatchlist, onAddToWatchlist, onRemoveFromWatchlist, onClick, onExclude }) => {
+const RecommendationCard = memo(({ rec, index, onWatched, onRemove, onRemovePick, isInLibrary, isInWatchlist, onAddToWatchlist, onRemoveFromWatchlist, onClick, onExclude, watchProvider }) => {
     const [image, setImage] = useState(rec.image || null);
     const [isLoadingImage, setIsLoadingImage] = useState(!rec.image);
 
@@ -178,7 +179,7 @@ const RecommendationCard = memo(({ rec, index, onWatched, onRemove, onRemovePick
 
                 {/* Watch Button */}
                 <a
-                    href={`https://hianime.to/search?keyword=${encodeURIComponent(rec.title)}`}
+                    href={WATCH_PROVIDERS[watchProvider]?.getUrl(rec.title) || WATCH_PROVIDERS.miruro.getUrl(rec.title)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-center gap-2 w-full bg-violet-600/10 hover:bg-violet-600 hover:text-white py-2.5 rounded-xl text-xs font-medium text-violet-300 transition-all border border-violet-500/20 hover:border-violet-500 mt-auto"
@@ -224,7 +225,8 @@ export default function RecommendationDisplay({
     onSearchChange,
     isInLibrary,
     isInWatchlist,
-    onOpenDetails
+    onOpenDetails,
+    watchProvider
 }) {
     const [sortConfig, setSortConfig] = useState({ key: 'added', direction: 'asc' });
     const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -443,6 +445,7 @@ export default function RecommendationDisplay({
                                             onOpenDetails({ ...rec, image: img || rec.image });
                                         }}
                                         onExclude={onExclude}
+                                        watchProvider={watchProvider}
                                     />
                                 );
                             })}

@@ -1,8 +1,9 @@
 import { X, Calendar, Tag, PlayCircle, Plus, Check, Edit3, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
+import { WATCH_PROVIDERS } from '../utils/watchProviders';
 
-export default function DetailsModal({ isOpen, onClose, item, onAction, actionLabel, actionIcon, isActionDisabled, onUpdateNote, enhancedMotion = true, showNotes = false }) {
+export default function DetailsModal({ isOpen, onClose, item, onAction, actionLabel, actionIcon, isActionDisabled, onUpdateNote, enhancedMotion = true, showNotes = false, watchProvider }) {
     const [note, setNote] = useState('');
     const [isExpanded, setIsExpanded] = useState(false);
 
@@ -214,7 +215,7 @@ export default function DetailsModal({ isOpen, onClose, item, onAction, actionLa
                                     )}
 
                                     <a
-                                        href={`https://hianime.to/search?keyword=${encodeURIComponent(item.title)}`}
+                                        href={WATCH_PROVIDERS[watchProvider]?.getUrl(item.title) || WATCH_PROVIDERS.miruro.getUrl(item.title)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="flex-1 flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white px-4 py-2.5 rounded-xl font-medium transition-colors border border-white/10 hover:border-white/20 text-sm"

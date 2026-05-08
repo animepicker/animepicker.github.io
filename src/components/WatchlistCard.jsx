@@ -4,8 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, LayoutGrid, X, Calendar, Tag, Sparkles, RefreshCw, EyeOff, PlayCircle } from 'lucide-react';
 import { getAnimeImage } from '../services/jikanService';
 import { formatTags } from '../utils/tagUtils';
+import { WATCH_PROVIDERS } from '../utils/watchProviders';
 
-export default function WatchlistCard({ item, onClick, onMoveToLibrary, onRemove, onGenerateInfo, loadingItems, onExclude, onOpenRefreshModal, enhancedMotion = true }) {
+export default function WatchlistCard({ item, onClick, onMoveToLibrary, onRemove, onGenerateInfo, loadingItems, onExclude, onOpenRefreshModal, enhancedMotion = true, watchProvider }) {
     const [imageUrl, setImageUrl] = useState(null);
 
     const isLoading = Array.isArray(loadingItems) && (loadingItems.includes(item.title) || loadingItems.includes(item.id));
@@ -151,7 +152,7 @@ export default function WatchlistCard({ item, onClick, onMoveToLibrary, onRemove
                 {/* Watch Button */}
                 {(hasInfo || item.year) && (
                     <a
-                        href={`https://hianime.to/search?keyword=${encodeURIComponent(item.title)}`}
+                        href={WATCH_PROVIDERS[watchProvider]?.getUrl(item.title) || WATCH_PROVIDERS.miruro.getUrl(item.title)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center justify-center gap-2 w-full bg-violet-600/10 hover:bg-violet-600 hover:text-white py-2.5 rounded-xl text-xs font-medium text-violet-300 transition-all border border-violet-500/20 hover:border-violet-500 mt-3"

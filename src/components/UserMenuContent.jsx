@@ -16,6 +16,7 @@ import {
     DEFAULT_NVIDIA_MODEL,
     DEFAULT_GOOGLE_MODEL
 } from '../services/aiService';
+import { WATCH_PROVIDERS } from '../utils/watchProviders';
 import { resolveUserKey } from '../services/authService';
 
 // API Key Input Constants
@@ -96,9 +97,11 @@ export default function UserMenuContent({
     taskAiProvider = 'cerebras',
     setTaskAiProvider = () => { },
     taskSelectedModel = '',
-    setTaskSelectedModel = () => { }
+    setTaskSelectedModel = () => { },
+    watchProvider,
+    setWatchProvider
 }) {
-    const [currentView, setCurrentView] = useState(initialView); // 'main', 'about', 'api', 'api_providers', 'api_models', 'api_custom_edit', 'instructions', 'regen', 'regen_options', 'excluded', 'effects', 'cloud', 'destruction', 'data_backup', 'console', 'api_utility'
+    const [currentView, setCurrentView] = useState(initialView); // 'main', 'about', 'api', 'api_providers', 'api_models', 'api_custom_edit', 'instructions', 'regen', 'regen_options', 'excluded', 'content_prefs', 'watch_provider', 'effects', 'cloud', 'destruction', 'data_backup', 'console', 'api_utility'
     const [selectionContext, setSelectionContext] = useState('primary'); // 'primary' or 'utility'
 
     const getApiKeyHint = (providerId) => {
@@ -511,6 +514,16 @@ export default function UserMenuContent({
                                         <span className="text-sm font-medium">Excluded Items</span>
                                     </div>
                                     <ChevronDown size={16} className="-rotate-90 text-gray-600 group-hover:text-gray-400 transition-all" />
+                                </button>
+                                <button
+                                    onClick={() => setCurrentView('content_prefs')}
+                                    className="flex items-center justify-between w-full p-3 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20 transition-all group"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <Play size={18} className="text-emerald-400" />
+                                        <span className="text-sm font-medium">Content Preferences</span>
+                                    </div>
+                                    <ChevronDown size={16} className="-rotate-90 text-gray-600 group-hover:text-emerald-400/70 transition-all" />
                                 </button>
                                 <button
                                     onClick={() => setCurrentView('effects')}
@@ -1652,6 +1665,86 @@ export default function UserMenuContent({
                                         </p>
                                     </div>
                                 </div>
+                            </div>
+                        </motion.div>
+                    )
+                }
+
+                {
+                    currentView === 'content_prefs' && (
+                        <motion.div
+                            key="content_prefs"
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            variants={subViewVariants}
+                            className="flex flex-col h-full"
+                        >
+                            <MenuHeader title="Content Preferences" onBack={() => setCurrentView('main')} />
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+                                <div className="space-y-3">
+                                    <label className="text-xs text-gray-500 font-bold uppercase tracking-wider ml-1">Watch Provider</label>
+                                    <button
+                                        onClick={() => setCurrentView('watch_provider')}
+                                        className="group relative flex items-center w-full p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-emerald-500/30 transition-all text-left"
+                                    >
+                                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center mr-4 group-hover:bg-emerald-500/20 transition-colors">
+                                            <Play size={20} className="text-emerald-400" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-white font-bold text-sm flex items-center gap-2">
+                                                {WATCH_PROVIDERS[watchProvider]?.name || 'Select Provider'}
+                                            </div>
+                                            <div className="text-xs text-gray-500 mt-0.5 truncate">Click to switch or manage</div>
+                                        </div>
+                                        <ChevronRight size={18} className="text-gray-600 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )
+                }
+
+                {
+                    currentView === 'watch_provider' && (
+                        <motion.div
+                            key="watch_provider"
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            variants={subViewVariants}
+                            className="flex flex-col h-full"
+                        >
+                            <MenuHeader title="Watch Provider" onBack={() => setCurrentView('content_prefs')} />
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                                <div className="space-y-2">
+                                    {Object.values(WATCH_PROVIDERS).map((provider) => (
+                                        <button
+                                            key={provider.id}
+                                            onClick={() => {
+                                                setWatchProvider(provider.id);
+                                                setCurrentView('content_prefs');
+                                            }}
+                                            className={`flex items-center justify-between w-full p-3 rounded-xl border transition-all group ${watchProvider === provider.id
+                                                ? 'bg-emerald-500/10 border-emerald-500/50 text-white'
+                                                : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20 hover:text-gray-200'
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex-shrink-0 w-5 flex justify-center">
+                                                    {watchProvider === provider.id && <Check size={16} className="text-emerald-400" />}
+                                                </div>
+                                                <div className="text-left">
+                                                    <span className={`text-sm font-bold block ${watchProvider === provider.id ? 'text-white' : 'text-gray-300'}`}>{provider.name}</span>
+                                                    <span className="text-[10px] opacity-40 block truncate">{provider.baseUrl}</span>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-[10px] text-gray-500 mt-6 px-1 italic leading-relaxed">
+                                    Select your preferred platform for watching anime. This affects all "Watch" buttons across the application.
+                                </p>
                             </div>
                         </motion.div>
                     )

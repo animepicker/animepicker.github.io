@@ -3,11 +3,12 @@ import { Tag, X, PlayCircle, RefreshCw, Sparkles, ChevronDown, Calendar, Image a
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAnimeImage } from '../services/jikanService';
 import { formatTags } from '../utils/tagUtils';
+import { WATCH_PROVIDERS } from '../utils/watchProviders';
 
 const ITEMS_PER_PAGE = 9; // 3 columns x 3 rows
 
 // Memoized anime card component
-const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExpanded, onToggleExpand, onGenerateInfo, onRemove, onClick, onMoveToWatchlist, onExclude, onGenerateRecommendation, isGeneratingRec, onOpenRefreshModal }) {
+const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExpanded, onToggleExpand, onGenerateInfo, onRemove, onClick, onMoveToWatchlist, onExclude, onGenerateRecommendation, isGeneratingRec, onOpenRefreshModal, watchProvider }) {
     const [imageUrl, setImageUrl] = useState(null);
 
     useEffect(() => {
@@ -166,7 +167,7 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
                 {/* Watch Button */}
                 {(hasInfo || animeData.year) && (
                     <a
-                        href={`https://hianime.to/search?keyword=${encodeURIComponent(animeData.title)}`}
+                        href={WATCH_PROVIDERS[watchProvider]?.getUrl(animeData.title) || WATCH_PROVIDERS.miruro.getUrl(animeData.title)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center justify-center gap-2 w-full bg-violet-600/10 hover:bg-violet-600 hover:text-white py-2.5 rounded-xl text-xs font-medium text-violet-300 transition-all border border-violet-500/20 hover:border-violet-500 mt-auto"
@@ -181,7 +182,7 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
     );
 });
 
-export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGenerateAllInfo, onImport, loadingItems, searchQuery, onSearchChange, onUpdateNote, onMoveToWatchlist, onMoveToLibrary, onExclude, onOpenRefreshModal, enhancedMotion, isInWatchlist, onOpenDetails, onGenerateRecommendation, generatingRecItems }) {
+export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGenerateAllInfo, onImport, loadingItems, searchQuery, onSearchChange, onUpdateNote, onMoveToWatchlist, onMoveToLibrary, onExclude, onOpenRefreshModal, enhancedMotion, isInWatchlist, onOpenDetails, onGenerateRecommendation, generatingRecItems, watchProvider }) {
     const [expandedItems, setExpandedItems] = useState({});
     const [showDropdown, setShowDropdown] = useState(false);
     const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -521,6 +522,7 @@ export default function LibraryDisplay({ library, onRemove, onGenerateInfo, onGe
                                     onExclude={onExclude}
                                     onGenerateRecommendation={onGenerateRecommendation}
                                     onOpenRefreshModal={onOpenRefreshModal}
+                                    watchProvider={watchProvider}
                                 />
                             );
                         })}

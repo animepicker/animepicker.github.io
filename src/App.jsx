@@ -53,6 +53,7 @@ import {
     getUserProfile
 } from './services/googleDriveService';
 
+import { WATCH_PROVIDERS, DEFAULT_WATCH_PROVIDER } from './utils/watchProviders';
 import { DEMOGRAPHICS, validateDemographics } from './utils/tagUtils';
 
 const getSafeTitle = (item) => {
@@ -146,6 +147,8 @@ function App() {
     }, [taskSelectedModel, effectiveTaskAiProvider]);
 
     const effectiveTaskSelectedModel = getTaskSelectedModel();
+
+    const [watchProvider, setWatchProvider] = useState(() => localStorage.getItem(resolveUserKey('watch_provider')) || localStorage.getItem('watch_provider') || DEFAULT_WATCH_PROVIDER);
 
     const [currentUser, setCurrentUser] = useState(() => getStoredUser());
     const [library, setLibrary] = useState(() => {
@@ -468,6 +471,11 @@ function App() {
     const instructionsRef = useRef(customInstructions);
     const excludedItemsRef = useRef(excludedItems);
     const performanceRef = useRef(performanceSettings);
+    const watchProviderRef = useRef(watchProvider);
+
+    useEffect(() => {
+        watchProviderRef.current = watchProvider;
+    }, [watchProvider]);
     const isLoadingLibrary = useRef(true); // Start as true to prevent mount markings
     const isApplyingCloudSync = useRef(false);
     const [hasAutoSynced, setHasAutoSynced] = useState(false);
@@ -495,7 +503,8 @@ function App() {
             'mistral_api_key', 'nvidia_api_key', 'google_api_key', 'custom_providers',
             'groq_model', 'cerebras_model', 'mistral_model', 'nvidia_model', 'google_model', 'openrouter_model',
             'task_ai_provider', 'task_selected_model', 'task_ai_enabled', 'performance_settings', 'ai_max_tokens', 'selected_model',
-            'task_groq_model', 'task_cerebras_model', 'task_mistral_model', 'task_nvidia_model', 'task_google_model', 'task_openrouter_model'
+            'task_groq_model', 'task_cerebras_model', 'task_mistral_model', 'task_nvidia_model', 'task_google_model', 'task_openrouter_model',
+            'watch_provider'
         ];
 
         let migratedCount = 0;
@@ -577,6 +586,15 @@ function App() {
             localStorage.setItem(resolveUserKey('task_selected_model'), taskSelectedModel);
         }
     }, [taskSelectedModel, taskAiProvider]);
+
+    useEffect(() => {
+        if (watchProvider) {
+            localStorage.setItem(resolveUserKey('watch_provider'), watchProvider);
+            if (currentUser && !isLoadingLibrary.current) {
+                markLocalChange('watch_provider');
+            }
+        }
+    }, [watchProvider, currentUser, markLocalChange]);
 
     useEffect(() => {
         if (currentUser) {
@@ -805,7 +823,7 @@ function App() {
                 clearTimeout(autoSyncTimerRef.current);
             }
         };
-    }, [library, watchlist, recommendations, customInstructions, excludedItems, performanceSettings, isGoogleSignedIn, currentUser, hasAutoSynced]);
+    }, [library, watchlist, recommendations, customInstructions, excludedItems, performanceSettings, watchProvider, isGoogleSignedIn, currentUser, hasAutoSynced]);
 
     // Save custom instructions when they change
     useEffect(() => {
@@ -1177,7 +1195,7 @@ function App() {
             }
 
             const syncFile = await findSyncFile();
-            const fields = ['library', 'watchlist', 'recommendations', 'instructions', 'excludedItems', 'performanceSettings'];
+            const fields = ['library', 'watchlist', 'recommendations', 'instructions', 'excludedItems', 'performanceSettings', 'watchProvider'];
             const getLocalFieldTs = (field) => {
                 const iso = localStorage.getItem(`${username}_last_local_change_${field}_iso`);
                 return iso ? new Date(iso).getTime() : 0;
@@ -1202,7 +1220,8 @@ function App() {
                     recommendations: recommendationsRef.current,
                     instructions: instructionsRef.current,
                     excludedItems: excludedItemsRef.current,
-                    performanceSettings: performanceRef.current
+                    performanceSettings: performanceRef.current,
+                    watchProvider: watchProviderRef.current
                 };
 
                 const resolved = {};
@@ -1226,6 +1245,7 @@ function App() {
                 setCustomInstructions(Array.isArray(resolved.instructions) ? resolved.instructions : customInstructions);
                 setExcludedItems(Array.isArray(resolved.excludedItems) ? resolved.excludedItems : excludedItems);
                 setPerformanceSettings(resolved.performanceSettings || performanceSettings);
+                setWatchProvider(resolved.watchProvider || watchProvider);
 
                 // CRITICAL: Synchronize Refs so subsequent auto-syncs don't re-upload stale local data
                 libraryRef.current = Array.isArray(resolved.library) ? resolved.library : libraryRef.current;
@@ -1234,6 +1254,7 @@ function App() {
                 instructionsRef.current = Array.isArray(resolved.instructions) ? resolved.instructions : instructionsRef.current;
                 excludedItemsRef.current = Array.isArray(resolved.excludedItems) ? resolved.excludedItems : excludedItemsRef.current;
                 performanceRef.current = resolved.performanceSettings || performanceRef.current;
+                watchProviderRef.current = resolved.watchProvider || watchProviderRef.current;
 
                 setTimeout(() => {
                     isApplyingCloudSync.current = false;
@@ -1246,6 +1267,7 @@ function App() {
                     instructions: Array.isArray(resolved.instructions) ? resolved.instructions : customInstructions,
                     excludedItems: Array.isArray(resolved.excludedItems) ? resolved.excludedItems : excludedItems,
                     performanceSettings: resolved.performanceSettings || performanceSettings,
+                    watchProvider: resolved.watchProvider || watchProvider,
                     modifiedAt: resolvedModifiedAt,
                     timestamp: new Date().toISOString()
                 }, syncFile.id);
@@ -1264,7 +1286,8 @@ function App() {
                     recommendations: localStorage.getItem(`${username}_last_local_change_recommendations_iso`) || nowIso,
                     instructions: localStorage.getItem(`${username}_last_local_change_instructions_iso`) || nowIso,
                     excludedItems: localStorage.getItem(`${username}_last_local_change_excludedItems_iso`) || nowIso,
-                    performanceSettings: localStorage.getItem(`${username}_last_local_change_performanceSettings_iso`) || nowIso
+                    performanceSettings: localStorage.getItem(`${username}_last_local_change_performanceSettings_iso`) || nowIso,
+                    watchProvider: localStorage.getItem(`${username}_last_local_change_watchProvider_iso`) || nowIso
                 };
                 await uploadSyncData({
                     library,
@@ -1273,6 +1296,7 @@ function App() {
                     instructions: customInstructions,
                     excludedItems,
                     performanceSettings,
+                    watchProvider,
                     modifiedAt,
                     timestamp: nowIso
                 });
@@ -1322,7 +1346,8 @@ function App() {
                 recommendations: localStorage.getItem(`${username}_last_local_change_recommendations_iso`) || nowIso,
                 instructions: localStorage.getItem(`${username}_last_local_change_instructions_iso`) || nowIso,
                 excludedItems: localStorage.getItem(`${username}_last_local_change_excludedItems_iso`) || nowIso,
-                performanceSettings: localStorage.getItem(`${username}_last_local_change_performanceSettings_iso`) || nowIso
+                performanceSettings: localStorage.getItem(`${username}_last_local_change_performanceSettings_iso`) || nowIso,
+                watchProvider: localStorage.getItem(`${username}_last_local_change_watchProvider_iso`) || nowIso
             };
 
             await uploadSyncData({
@@ -1332,6 +1357,7 @@ function App() {
                 instructions: instructionsRef.current,
                 excludedItems: excludedItemsRef.current,
                 performanceSettings: performanceRef.current,
+                watchProvider: watchProviderRef.current,
                 modifiedAt,
                 timestamp: nowIso
             }, syncFile?.id);
@@ -3253,6 +3279,8 @@ function App() {
                                 defaultInstructions={[DEMOGRAPHIC_DEFAULT_INSTRUCTION, RECOMMENDATION_DEFAULT_INSTRUCTION]}
                                 watchlist={watchlist}
                                 library={library}
+                                watchProvider={watchProvider}
+                                setWatchProvider={setWatchProvider}
                                 onRegen={handleRegenFromMenu}
                                 excludedItems={excludedItems}
                                 onRestore={handleRestoreItem}
@@ -3735,6 +3763,7 @@ function App() {
                                             onRemovePick={removeFromRecommendations}
                                             library={library}
                                             watchlist={watchlist}
+                                            watchProvider={watchProvider}
                                             onAddToWatchlist={addToWatchlist}
                                             onRemoveFromWatchlist={removeFromWatchlist}
                                             onGenerate={handleGenerate}
@@ -3758,6 +3787,7 @@ function App() {
                                     <WatchlistDisplay
                                         watchlist={filteredWatchlist}
                                         library={library}
+                                        watchProvider={watchProvider}
                                         onRemove={requestRemoveFromWatchlist}
                                         onMoveToLibrary={moveToLibrary}
                                         onMoveToWatchlist={moveToWatchlist}
@@ -3783,6 +3813,7 @@ function App() {
                                 >
                                     <LibraryDisplay
                                         library={filteredLibrary}
+                                        watchProvider={watchProvider}
                                         onRemove={removeFromLibrary}
                                         onGenerateInfo={generateInfoForItem}
                                         onGenerateAllInfo={generateAllInfo}
@@ -4575,6 +4606,7 @@ function App() {
                 isOpen={detailsModalState.isOpen}
                 onClose={handleCloseDetails}
                 item={detailsModalState.item}
+                watchProvider={watchProvider}
                 onAction={handleDetailsAction}
                 onUpdateNote={updateItemNote}
                 enhancedMotion={performanceSettings.enhancedMotion}
