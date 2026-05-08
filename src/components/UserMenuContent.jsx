@@ -1468,53 +1468,56 @@ export default function UserMenuContent({
                         >
                             <MenuHeader title="Instructions" />
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                                <p className="text-sm text-gray-400 mb-6">
-                                    These instructions will be sent to the AI whenever you generate new picks or request details.
-                                </p>
+                                <div className="space-y-6">
+                                    <div className="bg-pink-500/5 border border-pink-500/10 rounded-2xl p-4">
+                                        <p className="text-xs text-pink-300/80 leading-relaxed font-medium">
+                                            These instructions will be sent to the AI whenever you generate new picks or request details.
+                                        </p>
+                                    </div>
 
-                                <div className="space-y-3 mb-8">
-                                    {customInstructions.length === 0 ? (
-                                        <div className="text-center py-8 text-gray-500 border-2 border-dashed border-white/5 rounded-xl">
-                                            No custom instructions yet.
-                                        </div>
-                                    ) : (
-                                        customInstructions.map((inst, idx) => (
-                                            <motion.div
-                                                key={idx}
-                                                className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl group cursor-pointer hover:bg-white/10 transition-all"
-                                                onClick={() => {
-                                                    setInstructionToEdit({ index: idx, value: inst });
-                                                    setCurrentView('instruction_edit');
-                                                }}
-                                            >
-                                                <div className="w-1.5 h-1.5 rounded-full shrink-0 bg-pink-500/40"
-                                                    style={{ opacity: isDefault(inst) ? 1 : 0.3 }}
-                                                />
-                                                <div className="flex-1 min-w-0 flex items-center gap-2">
-                                                    <span className="flex-1 text-white text-sm truncate">
-                                                        {inst}
-                                                    </span>
-                                                    {isDefault(inst) && (
-                                                        <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider bg-pink-500/10 text-pink-400 border border-pink-500/20 font-bold whitespace-nowrap">
-                                                            Default
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setInstructionToDelete(idx);
-                                                        setShowInstructionDeleteConfirm(true);
+                                    <div className="space-y-3 mb-8">
+                                        {customInstructions.length === 0 ? (
+                                            <div className="text-center py-8 text-gray-500 border-2 border-dashed border-white/5 rounded-xl">
+                                                No custom instructions yet.
+                                            </div>
+                                        ) : (
+                                            customInstructions.map((inst, idx) => (
+                                                <motion.div
+                                                    key={idx}
+                                                    className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl group cursor-pointer hover:bg-white/10 transition-all"
+                                                    onClick={() => {
+                                                        setInstructionToEdit({ index: idx, value: inst });
+                                                        setCurrentView('instruction_edit');
                                                     }}
-                                                    className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
                                                 >
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            </motion.div>
-                                        ))
-                                    )}
+                                                    <div className="w-1.5 h-1.5 rounded-full shrink-0 bg-pink-500/40"
+                                                        style={{ opacity: isDefault(inst) ? 1 : 0.3 }}
+                                                    />
+                                                    <div className="flex-1 min-w-0 flex items-center gap-2">
+                                                        <span className="flex-1 text-white text-sm truncate">
+                                                            {inst}
+                                                        </span>
+                                                        {isDefault(inst) && (
+                                                            <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider bg-pink-500/10 text-pink-400 border border-pink-500/20 font-bold whitespace-nowrap">
+                                                                Default
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setInstructionToDelete(idx);
+                                                            setShowInstructionDeleteConfirm(true);
+                                                        }}
+                                                        className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </motion.div>
+                                            ))
+                                        )}
+                                    </div>
                                 </div>
-
                             </div>
 
                             {/* Global Action Bar */}
@@ -1859,35 +1862,38 @@ export default function UserMenuContent({
                         >
                             <MenuHeader title="Watch Provider" onBack={() => setCurrentView('content_prefs')} />
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                                <div className="space-y-2">
-                                    {Object.values(WATCH_PROVIDERS).map((provider) => (
-                                        <button
-                                            key={provider.id}
-                                            onClick={() => {
-                                                setWatchProvider(provider.id);
-                                                setCurrentView('content_prefs');
-                                            }}
-                                            className={`flex items-center justify-between w-full p-3 rounded-xl border transition-all group ${watchProvider === provider.id
-                                                ? 'bg-emerald-500/10 border-emerald-500/50 text-white'
-                                                : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20 hover:text-gray-200'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex-shrink-0 w-5 flex justify-center">
-                                                    {watchProvider === provider.id && <Check size={16} className="text-emerald-400" />}
+                                <div className="space-y-6">
+                                    <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-4">
+                                        <p className="text-xs text-emerald-300/80 leading-relaxed font-medium">
+                                            Select your preferred platform for watching anime. This affects all "Watch" buttons across the application.
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        {Object.values(WATCH_PROVIDERS).map((provider) => (
+                                            <button
+                                                key={provider.id}
+                                                onClick={() => {
+                                                    setWatchProvider(provider.id);
+                                                    setCurrentView('content_prefs');
+                                                }}
+                                                className={`flex items-center justify-between w-full p-3 rounded-xl border transition-all group ${watchProvider === provider.id
+                                                    ? 'bg-emerald-500/10 border-emerald-500/50 text-white'
+                                                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20 hover:text-gray-200'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex-shrink-0 w-5 flex justify-center">
+                                                        {watchProvider === provider.id && <Check size={16} className="text-emerald-400" />}
+                                                    </div>
+                                                    <div className="text-left">
+                                                        <span className={`text-sm font-bold block ${watchProvider === provider.id ? 'text-white' : 'text-gray-300'}`}>{provider.name}</span>
+                                                        <span className="text-[10px] opacity-40 block truncate">{provider.baseUrl}</span>
+                                                    </div>
                                                 </div>
-                                                <div className="text-left">
-                                                    <span className={`text-sm font-bold block ${watchProvider === provider.id ? 'text-white' : 'text-gray-300'}`}>{provider.name}</span>
-                                                    <span className="text-[10px] opacity-40 block truncate">{provider.baseUrl}</span>
-                                                </div>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                                <div className="mt-6">
-                                    <InfoBox>
-                                        Select your preferred platform for watching anime. This affects all "Watch" buttons across the application.
-                                    </InfoBox>
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>
