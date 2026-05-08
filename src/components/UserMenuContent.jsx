@@ -55,8 +55,6 @@ export default function UserMenuContent({
     setShowInstructionDeleteAllConfirm,
     instructionToDelete,
     setInstructionToDelete,
-    showInstructionEditModal,
-    setShowInstructionEditModal,
     instructionToEdit,
     setInstructionToEdit,
     defaultInstructions = [],
@@ -1407,7 +1405,7 @@ export default function UserMenuContent({
                                             onChange={(e) => setEditExcludedReason(e.target.value)}
                                             placeholder="Add a reason to help AI recommendations..."
                                             rows={6}
-                                            className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50 transition-all resize-none"
+                                            className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-0 focus:border-violet-500/50 transition-colors resize-none"
                                         />
                                         <div className="flex justify-between items-center px-1">
                                             <p className="text-[10px] text-gray-600 italic">
@@ -1465,7 +1463,7 @@ export default function UserMenuContent({
                                                 className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl group cursor-pointer hover:bg-white/10 transition-all"
                                                 onClick={() => {
                                                     setInstructionToEdit({ index: idx, value: inst });
-                                                    setShowInstructionEditModal(true);
+                                                    setCurrentView('instruction_edit');
                                                 }}
                                             >
                                                 <div className="w-1.5 h-1.5 rounded-full shrink-0 bg-pink-500/40"
@@ -1487,7 +1485,7 @@ export default function UserMenuContent({
                                                         setInstructionToDelete(idx);
                                                         setShowInstructionDeleteConfirm(true);
                                                     }}
-                                                    className="p-1.5 text-gray-500 hover:text-red-400 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-all shrink-0"
+                                                    className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>
@@ -1499,7 +1497,7 @@ export default function UserMenuContent({
                                 <button
                                     onClick={() => {
                                         setInstructionToEdit({ index: null, value: '' });
-                                        setShowInstructionEditModal(true);
+                                        setCurrentView('instruction_edit');
                                     }}
                                     className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:border-pink-500/40 hover:text-white transition-all group"
                                 >
@@ -1507,24 +1505,100 @@ export default function UserMenuContent({
                                     <span className="text-sm font-medium">Add a new instruction...</span>
                                 </button>
 
-                                {customInstructions.length > 0 && (
-                                    <button
-                                        onClick={() => setShowInstructionDeleteAllConfirm(true)}
-                                        className="w-full mt-4 p-2 text-red-400/60 hover:text-red-400 text-xs transition-colors"
-                                    >
-                                        Delete all instructions
-                                    </button>
-                                )}
+                            </div>
 
-                                {defaultInstructions.some(def => !customInstructions.includes(def)) && (
-                                    <button
-                                        onClick={onRestoreDefaults}
-                                        className="w-full mt-2 p-2 text-gray-400/60 hover:text-gray-400 text-xs transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        <RefreshCw className="w-3 h-3" />
-                                        Restore default instructions
-                                    </button>
-                                )}
+                            {/* Global Action Bar */}
+                            {(customInstructions.length > 0 || defaultInstructions.some(def => !customInstructions.includes(def))) && (
+                                <div className="p-4 bg-white/[0.03] backdrop-blur-xl border-t border-white/10 flex gap-2">
+                                    {customInstructions.length > 0 && (
+                                        <button
+                                            onClick={() => setShowInstructionDeleteAllConfirm(true)}
+                                            className="flex-1 py-2.5 rounded-xl bg-red-500/10 text-red-400 hover:text-red-300 hover:bg-red-500/20 text-[10px] font-black uppercase tracking-widest transition-all border border-red-500/20 hover:border-red-500/30"
+                                        >
+                                            Delete all
+                                        </button>
+                                    )}
+
+                                    {defaultInstructions.some(def => !customInstructions.includes(def)) && (
+                                        <button
+                                            onClick={onRestoreDefaults}
+                                            className="flex-1 py-2.5 rounded-xl bg-white/5 text-white/90 hover:text-white hover:bg-white/10 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border border-white/10 hover:border-white/20"
+                                        >
+                                            <RefreshCw className="w-3 h-3" />
+                                            Restore defaults
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </motion.div>
+                    )
+                }
+
+                {
+                    currentView === 'instruction_edit' && (
+                        <motion.div
+                            key="instruction_edit"
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            variants={subViewVariants}
+                            className="flex flex-col h-full"
+                        >
+                            <MenuHeader 
+                                title={instructionToEdit.index === null ? 'Add Instruction' : 'Edit Instruction'} 
+                                onBack={() => setCurrentView('instructions')} 
+                            />
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                                <div className="space-y-8">
+                                    <div className="space-y-3">
+                                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-tighter ml-1">
+                                            Instruction Text
+                                        </label>
+                                        <textarea
+                                            value={instructionToEdit.value}
+                                            onChange={(e) => setInstructionToEdit({ ...instructionToEdit, value: e.target.value })}
+                                            placeholder="Example: Only recommend psychological thrillers from the 90s..."
+                                            rows={8}
+                                            className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:ring-0 focus:border-pink-500/50 transition-colors resize-none"
+                                        />
+                                        <div className="flex justify-between items-center px-1">
+                                            <p className="text-[10px] text-gray-600 italic">
+                                                Tip: Be specific for better AI results.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3 mt-4">
+                                        <button
+                                            onClick={() => setCurrentView('instructions')}
+                                            className="flex-1 py-2.5 rounded-xl text-xs font-bold text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            disabled={!instructionToEdit.value.trim()}
+                                            onClick={() => {
+                                                const trimmedValue = instructionToEdit.value.trim();
+                                                if (!trimmedValue) return;
+
+                                                const newInsts = [...customInstructions];
+                                                if (instructionToEdit.index === null) {
+                                                    newInsts.push(trimmedValue);
+                                                } else {
+                                                    newInsts[instructionToEdit.index] = trimmedValue;
+                                                }
+
+                                                const finalInsts = newInsts.filter(i => i);
+                                                setCustomInstructions(finalInsts);
+                                                setCurrentView('instructions');
+                                                toast.success(instructionToEdit.index === null ? "Instruction added" : "Instruction updated");
+                                            }}
+                                            className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-lg shadow-pink-900/20 hover:shadow-[0_0_20px_rgba(236,72,153,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center disabled:opacity-50"
+                                        >
+                                            {instructionToEdit.index === null ? 'Add Instruction' : 'Save Changes'}
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </motion.div>
                     )

@@ -412,7 +412,6 @@ function App() {
     const [showInstructionDeleteConfirm, setShowInstructionDeleteConfirm] = useState(false);
     const [showInstructionDeleteAllConfirm, setShowInstructionDeleteAllConfirm] = useState(false);
     const [instructionToDelete, setInstructionToDelete] = useState(null);
-    const [showInstructionEditModal, setShowInstructionEditModal] = useState(false);
 
     const [instructionToEdit, setInstructionToEdit] = useState({ index: null, value: '' });
     const [addToTarget, setAddToTarget] = useState('library'); // 'library' or 'watchlist'
@@ -762,7 +761,7 @@ function App() {
         const anyModalOpen = isModalOpen || deleteConfirmation.isOpen || showAddModal || showSearchModal ||
             showUserMenu || showLogoutConfirm || showGenerateConfirm ||
             showClearConfirm || showDeleteAccountConfirm || showInstructionDeleteConfirm ||
-            showInstructionDeleteAllConfirm || showInstructionEditModal || showExcludeModal ||
+            showInstructionDeleteAllConfirm || showExcludeModal ||
             showAuthModal;
 
         if (anyModalOpen) {
@@ -781,7 +780,7 @@ function App() {
         isModalOpen, deleteConfirmation.isOpen, showAddModal, showSearchModal,
         showUserMenu, showLogoutConfirm, showGenerateConfirm,
         showClearConfirm, showDeleteAccountConfirm, showInstructionDeleteConfirm,
-        showInstructionDeleteAllConfirm, showInstructionEditModal, showExcludeModal,
+        showInstructionDeleteAllConfirm, showExcludeModal,
         showAuthModal
     ]);
 
@@ -3293,8 +3292,6 @@ function App() {
                                 setShowInstructionDeleteAllConfirm={setShowInstructionDeleteAllConfirm}
                                 instructionToDelete={instructionToDelete}
                                 setInstructionToDelete={setInstructionToDelete}
-                                showInstructionEditModal={showInstructionEditModal}
-                                setShowInstructionEditModal={setShowInstructionEditModal}
                                 instructionToEdit={instructionToEdit}
                                 setInstructionToEdit={setInstructionToEdit}
                                 defaultInstructions={[DEMOGRAPHIC_DEFAULT_INSTRUCTION, RECOMMENDATION_DEFAULT_INSTRUCTION]}
@@ -4549,79 +4546,6 @@ function App() {
                 )}
             </AnimatePresence>
 
-            {/* Instruction Edit Modal */}
-            <AnimatePresence>
-                {showInstructionEditModal && (
-                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setShowInstructionEditModal(false)}
-                            className="absolute inset-0 bg-black/60 backdrop-blur-md"
-                        />
-                        <motion.div
-                            initial="hidden"
-                            animate="visible"
-                            exit="exit"
-                            variants={modalVariants}
-                            className="relative bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 shadow-2xl w-full max-w-lg"
-                        >
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-xl font-bold text-white">
-                                    {instructionToEdit.index === null ? 'Add Instruction' : 'Edit Instruction'}
-                                </h3>
-                                <button
-                                    onClick={() => setShowInstructionEditModal(false)}
-                                    className="text-gray-400 hover:text-white transition-colors"
-                                >
-                                    <X size={20} />
-                                </button>
-                            </div>
-
-                            <textarea
-                                value={instructionToEdit.value}
-                                onChange={(e) => setInstructionToEdit({ ...instructionToEdit, value: e.target.value })}
-                                placeholder="Example: Only recommend psychological thrillers from the 90s..."
-                                className="w-full h-40 bg-white/5 border border-white/10 rounded-xl p-4 text-white text-sm focus:ring-2 focus:ring-pink-500/40 focus:border-pink-500 outline-none transition-all resize-none placeholder:text-gray-600 mb-6"
-                                autoFocus
-                            />
-
-                            <div className="flex justify-end gap-3">
-                                <button
-                                    onClick={() => setShowInstructionEditModal(false)}
-                                    className="px-6 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all text-sm font-medium"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    disabled={!instructionToEdit.value.trim()}
-                                    onClick={() => {
-                                        const trimmedValue = instructionToEdit.value.trim();
-                                        if (!trimmedValue) return;
-
-                                        const newInsts = [...customInstructions];
-                                        if (instructionToEdit.index === null) {
-                                            newInsts.push(trimmedValue);
-                                        } else {
-                                            newInsts[instructionToEdit.index] = trimmedValue;
-                                        }
-
-                                        const finalInsts = newInsts.filter(i => i);
-                                        setCustomInstructions(finalInsts);
-                                        instructionsRef.current = finalInsts; // Update Ref
-                                        setShowInstructionEditModal(false);
-                                        toast.success(instructionToEdit.index === null ? "Instruction added" : "Instruction updated");
-                                    }}
-                                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 text-white font-medium hover:shadow-[0_0_20px_rgba(236,72,153,0.3)] transition-all text-sm disabled:opacity-50"
-                                >
-                                    {instructionToEdit.index === null ? 'Add Instruction' : 'Save Changes'}
-                                </button>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
 
             <DetailsModal
                 isOpen={detailsModalState.isOpen}
