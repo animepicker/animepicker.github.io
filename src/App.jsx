@@ -172,6 +172,7 @@ function App() {
         return getUserExcluded(user.username || user);
     });
     const [isLoading, setIsLoading] = useState(false);
+    const [hasInitialSyncCompleted, setHasInitialSyncCompleted] = useState(false);
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [loadingItems, setLoadingItems] = useState([]);
     const [generatingRecItems, setGeneratingRecItems] = useState([]);
@@ -481,6 +482,7 @@ function App() {
     const [hasAutoSynced, setHasAutoSynced] = useState(false);
     const autoSyncTimerRef = useRef(null);
     const importFileRef = useRef(null);
+    const initialSyncUserRef = useRef(null);
 
     const markLocalChange = useCallback((field) => {
         if (!currentUser || isLoadingLibrary.current || isApplyingCloudSync.current) return;
@@ -724,7 +726,7 @@ function App() {
 
     // Scan for missing demographics on initial load
     useEffect(() => {
-        if (!isLoadingLibrary.current && currentUser) {
+        if (!isLoadingLibrary.current && currentUser && hasInitialSyncCompleted) {
             console.log('[App] Scanning for items missing demographics...');
 
             // Check library
@@ -753,7 +755,7 @@ function App() {
                 }
             });
         }
-    }, [isLoadingLibrary.current, !!currentUser]);
+    }, [isLoadingLibrary.current, !!currentUser, hasInitialSyncCompleted]);
 
     // Body scroll lock effect
     useEffect(() => {
@@ -805,7 +807,7 @@ function App() {
 
     // Automatic Cloud Sync (Debounced)
     useEffect(() => {
-        if (isGoogleSignedIn && currentUser && !isLoadingLibrary.current && hasAutoSynced) {
+        if (isGoogleSignedIn && currentUser && !isLoadingLibrary.current && hasAutoSynced && hasInitialSyncCompleted) {
             // Cancel existing timer
             if (autoSyncTimerRef.current) {
                 clearTimeout(autoSyncTimerRef.current);
@@ -823,7 +825,7 @@ function App() {
                 clearTimeout(autoSyncTimerRef.current);
             }
         };
-    }, [library, watchlist, recommendations, customInstructions, excludedItems, performanceSettings, watchProvider, isGoogleSignedIn, currentUser, hasAutoSynced]);
+    }, [library, watchlist, recommendations, customInstructions, excludedItems, performanceSettings, watchProvider, isGoogleSignedIn, currentUser, hasAutoSynced, hasInitialSyncCompleted]);
 
     // Save custom instructions when they change
     useEffect(() => {
@@ -936,6 +938,12 @@ function App() {
             // For ALL users (manual or google), try to restore a Google session if they have a persistent token
             const username = currentUser.username || currentUser;
             const hint = currentUser.isGoogle ? currentUser.profile?.email : null;
+            
+            if (initialSyncUserRef.current === username) {
+                return; // Already triggered for this user (React StrictMode protection)
+            }
+            initialSyncUserRef.current = username;
+
             const hasStoredToken = localStorage.getItem(`${username}_google_drive_persistent_token`);
 
             // Only attempt silent re-auth if they are a Google user or have explicitly connected before
@@ -951,8 +959,14 @@ function App() {
                                 setShowSessionExpiredBanner(false);
                                 scheduleTokenExpiryCheck(username, hint);
                                 setLastCloudSync(localStorage.getItem(`${username}_last_cloud_sync`) || null);
+                                console.log('[App] Starting initial Google Drive sync...');
                                 // CRITICAL: Pass currentUser directly AND forceCloud=true to stop resurrection
-                                handleCloudSync(false, currentUser, true, true);
+                                handleCloudSync(false, currentUser, true, true).finally(() => {
+                                    console.log('[App] Initial Google Drive sync complete.');
+                                    setHasInitialSyncCompleted(true);
+                                });
+                            } else {
+                                setHasInitialSyncCompleted(true);
                             }
                         } else {
                             // Silent re-auth failed or was skipped (e.g. expired)
@@ -961,6 +975,7 @@ function App() {
                             if (hasStoredToken) {
                                 setShowSessionExpiredBanner(true);
                             }
+                            setHasInitialSyncCompleted(true);
                         }
                     }).catch((err) => {
                         console.warn('Initial silent Google re-auth failed or not available for user.');
@@ -969,9 +984,15 @@ function App() {
                         if (hasStoredToken) {
                             setShowSessionExpiredBanner(true);
                         }
+                        setHasInitialSyncCompleted(true);
                     });
                 });
+            } else {
+                setHasInitialSyncCompleted(true);
             }
+        } else {
+            initialSyncUserRef.current = null;
+            setHasInitialSyncCompleted(true);
         }
 
         return () => {
