@@ -70,9 +70,11 @@ export default function ExcludeModal({ isOpen, onClose, onConfirm, item, enhance
                                 className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
                                 onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
                             />
-                            <p className="text-xs text-gray-500 mt-2">
-                                Providing a reason helps the AI give you better recommendations.
-                            </p>
+                            <div className="bg-white/5 border border-dashed border-white/10 rounded-xl py-2 px-3 text-center mt-4">
+                                <p className="text-[10px] text-gray-500">
+                                    Providing a reason helps the AI give you better recommendations.
+                                </p>
+                            </div>
                         </div>
 
                         <div className="flex gap-3">

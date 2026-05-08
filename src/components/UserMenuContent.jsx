@@ -20,8 +20,14 @@ import { WATCH_PROVIDERS } from '../utils/watchProviders';
 import { resolveUserKey } from '../services/authService';
 
 
-// API Key Input Constants
-// Removed hardcoded DEFAULT_MODEL in favor of aiService.js constants
+// Helper component for standardized informational text boxes
+const InfoBox = ({ children, className = "" }) => (
+    <div className={`bg-white/5 border border-dashed border-white/10 rounded-xl py-2 px-3 text-center ${className}`}>
+        <p className="text-[10px] text-gray-500">
+            {children}
+        </p>
+    </div>
+);
 
 export default function UserMenuContent({
     currentUser,
@@ -1156,7 +1162,7 @@ export default function UserMenuContent({
                                             placeholder="https://localhost:11434/v1"
                                             className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-violet-500 transition-all"
                                         />
-                                        <p className="text-[10px] text-gray-600 px-1 italic">The OpenAI-compatible endpoint. Should NOT include /chat/completions</p>
+                                        <InfoBox className="mt-2">The OpenAI-compatible endpoint. Should NOT include /chat/completions</InfoBox>
                                     </div>
 
                                     <div className="space-y-2">
@@ -1421,10 +1427,10 @@ export default function UserMenuContent({
                                             rows={6}
                                             className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-0 focus:border-violet-500/50 transition-colors resize-none"
                                         />
-                                        <div className="flex justify-between items-center px-1">
-                                            <p className="text-[10px] text-gray-600 italic">
+                                        <div className="mt-6">
+                                            <InfoBox>
                                                 This reason is used by the AI to better understand your taste.
-                                            </p>
+                                            </InfoBox>
                                         </div>
                                     </div>
                                 </div>
@@ -1578,10 +1584,10 @@ export default function UserMenuContent({
                                             rows={8}
                                             className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:ring-0 focus:border-pink-500/50 transition-colors resize-none"
                                         />
-                                        <div className="flex justify-between items-center px-1">
-                                            <p className="text-[10px] text-gray-600 italic">
+                                        <div className="mt-6">
+                                            <InfoBox>
                                                 Tip: Be specific for better AI results.
-                                            </p>
+                                            </InfoBox>
                                         </div>
                                     </div>
                                 </div>
@@ -1878,9 +1884,11 @@ export default function UserMenuContent({
                                         </button>
                                     ))}
                                 </div>
-                                <p className="text-[10px] text-gray-500 mt-6 px-1 italic leading-relaxed">
-                                    Select your preferred platform for watching anime. This affects all "Watch" buttons across the application.
-                                </p>
+                                <div className="mt-6">
+                                    <InfoBox>
+                                        Select your preferred platform for watching anime. This affects all "Watch" buttons across the application.
+                                    </InfoBox>
+                                </div>
                             </div>
                         </motion.div>
                     )
@@ -2188,10 +2196,10 @@ export default function UserMenuContent({
                                     </div>
                                 </div>
 
-                                <div className="mt-auto pt-8">
-                                    <p className="text-[10px] text-center text-gray-600 italic">
+                                <div className="mt-6">
+                                    <InfoBox>
                                         Be careful, one wrong click and—*poof*—it's gone.
-                                    </p>
+                                    </InfoBox>
                                 </div>
                             </div>
                         </motion.div>
@@ -2255,12 +2263,10 @@ export default function UserMenuContent({
                                     </div>
                                 </div>
 
-                                <div className="mt-auto pt-8">
-                                    <div className="bg-white/5 border border-dashed border-white/10 rounded-xl p-3 text-center">
-                                        <p className="text-[10px] text-gray-500">
-                                            Local data is stored in your browser. Regularly export to keep your data safe.
-                                        </p>
-                                    </div>
+                                <div className="mt-6">
+                                    <InfoBox>
+                                        Local data is stored in your browser. Regularly export to keep your data safe.
+                                    </InfoBox>
                                 </div>
                             </div>
                         </motion.div>
@@ -2331,8 +2337,10 @@ export default function UserMenuContent({
                                 </div>
                                 <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2 font-mono text-xs">
                                     {consoleLogs.length === 0 ? (
-                                        <div className="text-center py-12 text-gray-500 italic">
-                                            No logs captured yet.
+                                        <div className="flex flex-col items-center justify-center py-12 px-6">
+                                            <InfoBox>
+                                                No logs captured yet.
+                                            </InfoBox>
                                         </div>
                                     ) : (
                                         consoleLogs.map((log, index) => (
