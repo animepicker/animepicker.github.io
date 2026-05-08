@@ -1267,39 +1267,6 @@ export default function UserMenuContent({
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        <div className="flex justify-between items-center px-1">
-                                            <button
-                                                onClick={() => setConfirmConfig({
-                                                    title: "Clear All Excluded Content?",
-                                                    message: `This will permanently remove all ${excludedItems.length} items from your excluded list. They will start appearing in your recommendations again.`,
-                                                    actionLabel: "Clear All",
-                                                    isDanger: true,
-                                                    onConfirm: () => {
-                                                        onClearAllExcluded();
-                                                        setConfirmConfig(null);
-                                                    }
-                                                })}
-                                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 group transition-all"
-                                            >
-                                                <Trash2 size={14} className="group-hover:scale-110 transition-transform" />
-                                                <span className="text-xs font-bold uppercase tracking-wider">Clear All</span>
-                                            </button>
-                                            <button
-                                                onClick={() => setConfirmConfig({
-                                                    title: "Restore All Items",
-                                                    message: "Move all excluded items back to their original lists?",
-                                                    actionLabel: "Restore All",
-                                                    onConfirm: () => {
-                                                        onRestoreAll();
-                                                        setConfirmConfig(null);
-                                                    }
-                                                })}
-                                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-600/10 hover:bg-violet-600/20 text-violet-400 border border-violet-500/20 group transition-all"
-                                            >
-                                                <Undo size={14} className="group-hover:-rotate-45 transition-transform" />
-                                                <span className="text-xs font-bold uppercase tracking-wider">Restore All</span>
-                                            </button>
-                                        </div>
                                         <div className="space-y-3">
                                             {excludedItems.map(item => (
                                                 <div key={item.id} className="p-3 bg-white/5 border border-white/10 rounded-xl group/item hover:border-white/20 transition-all">
@@ -1361,6 +1328,43 @@ export default function UserMenuContent({
                                     </div>
                                 )}
                             </div>
+
+                            {/* Global Action Bar */}
+                            {excludedItems.length > 0 && (
+                                <div className="p-4 bg-white/[0.03] backdrop-blur-xl border-t border-white/10 flex gap-2">
+                                    <button
+                                        onClick={() => setConfirmConfig({
+                                            title: "Clear All Excluded Content?",
+                                            message: `This will permanently remove all ${excludedItems.length} items from your excluded list. They will start appearing in your recommendations again.`,
+                                            actionLabel: "Clear All",
+                                            isDanger: true,
+                                            onConfirm: () => {
+                                                onClearAllExcluded();
+                                                setConfirmConfig(null);
+                                            }
+                                        })}
+                                        className="flex-1 py-2.5 rounded-xl bg-red-500/10 text-red-400 hover:text-red-300 hover:bg-red-500/20 text-[10px] font-black uppercase tracking-widest transition-all border border-red-500/20 hover:border-red-500/30 flex items-center justify-center gap-2 group"
+                                    >
+                                        <Trash2 size={14} className="group-hover:scale-110 transition-transform" />
+                                        Clear All
+                                    </button>
+                                    <button
+                                        onClick={() => setConfirmConfig({
+                                            title: "Restore All Items",
+                                            message: "Move all excluded items back to their original lists?",
+                                            actionLabel: "Restore All",
+                                            onConfirm: () => {
+                                                onRestoreAll();
+                                                setConfirmConfig(null);
+                                            }
+                                        })}
+                                        className="flex-1 py-2.5 rounded-xl bg-violet-600/10 text-violet-400 hover:bg-violet-600/20 text-[10px] font-black uppercase tracking-widest transition-all border border-violet-500/20 hover:border-violet-500/30 flex items-center justify-center gap-2 group"
+                                    >
+                                        <Undo size={14} className="group-hover:-rotate-45 transition-transform" />
+                                        Restore All
+                                    </button>
+                                </div>
+                            )}
                         </motion.div>
                     )
                 }
