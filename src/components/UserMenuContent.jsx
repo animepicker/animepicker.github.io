@@ -1305,17 +1305,12 @@ export default function UserMenuContent({
                                         <div className="space-y-3">
                                             {excludedItems.map(item => (
                                                 <div key={item.id} className="p-3 bg-white/5 border border-white/10 rounded-xl group/item hover:border-white/20 transition-all">
-                                                        <div className="flex items-start gap-3">
+                                                        <div className="flex items-center gap-3">
                                                             <div className="flex-1 min-w-0 cursor-pointer group/data" onClick={() => handleStartEditExcluded(item)}>
                                                                 <div className="flex items-center gap-2 mb-0.5">
                                                                     <div className="text-sm font-bold text-white leading-tight">
                                                                         {item.title}
                                                                     </div>
-                                                                    {item.year && (
-                                                                        <div className="shrink-0 flex items-center gap-1 text-[9px] font-black text-gray-500 bg-white/5 border border-white/5 rounded px-1 py-0.5">
-                                                                            {item.year}
-                                                                        </div>
-                                                                    )}
                                                                 </div>
                                                                 <div className="flex items-center gap-2">
                                                                     <div className={`shrink-0 px-1.5 py-0.5 rounded-[4px] text-[8px] font-black uppercase tracking-tighter ${item.source === 'library' ? 'bg-violet-500/20 text-violet-400' : item.source === 'watchlist' ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'}`}>
@@ -1323,7 +1318,12 @@ export default function UserMenuContent({
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <div className="flex items-center gap-0.5 shrink-0">
+                                                            <div className="flex items-center gap-1 shrink-0">
+                                                                {item.year && (
+                                                                    <div className="shrink-0 flex items-center gap-1 text-[9px] font-black text-gray-500 bg-white/5 border border-white/5 rounded px-1.5 py-0.5 mr-1">
+                                                                        {item.year}
+                                                                    </div>
+                                                                )}
                                                                 <button
                                                                     onClick={() => setConfirmConfig({
                                                                         title: "Restore Item",
@@ -1380,22 +1380,22 @@ export default function UserMenuContent({
                             <MenuHeader title="Edit Reason" onBack={() => setCurrentView('excluded')} />
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                                 <div className="space-y-8">
-                                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <div className="text-sm font-bold text-white leading-tight">
+                                    <div className="p-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between gap-4">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-sm font-bold text-white leading-tight mb-0.5">
                                                 {itemToEdit?.title}
                                             </div>
-                                            {itemToEdit?.year && (
-                                                <div className="shrink-0 flex items-center gap-1 text-[9px] font-black text-gray-500 bg-white/5 border border-white/5 rounded px-1 py-0.5">
-                                                    {itemToEdit.year}
+                                            <div className="flex items-center gap-2">
+                                                <div className={`shrink-0 px-1.5 py-0.5 rounded-[4px] text-[8px] font-black uppercase tracking-tighter ${itemToEdit?.source === 'library' ? 'bg-violet-500/20 text-violet-400' : itemToEdit?.source === 'watchlist' ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                                    {itemToEdit?.source}
                                                 </div>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <div className={`shrink-0 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${itemToEdit?.source === 'library' ? 'bg-violet-500/20 text-violet-400' : itemToEdit?.source === 'watchlist' ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'}`}>
-                                                {itemToEdit?.source}
                                             </div>
                                         </div>
+                                        {itemToEdit?.year && (
+                                            <div className="shrink-0 flex items-center gap-1 text-[9px] font-black text-gray-500 bg-white/5 border border-white/5 rounded px-1.5 py-0.5">
+                                                {itemToEdit.year}
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="space-y-3">
