@@ -95,8 +95,8 @@ const RecommendationCard = memo(({ rec, index, onWatched, onRemove, onRemovePick
                     <button
                         onClick={() => isAdded ? onRemove(null, rec.title, false) : onWatched({ ...rec, image: image || rec.image })}
                         className={`p-2 rounded-xl transition-all group/btn ${isAdded
-                            ? 'bg-green-600/20 text-green-400 hover:bg-white hover:text-red-500 border border-green-500/20 hover:border-red-500 shadow-lg shadow-green-500/10'
-                            : 'bg-black/60 hover:bg-green-600 hover:text-white text-gray-300 shadow-lg'
+                            ? 'bg-violet-600/20 text-violet-400 hover:bg-white hover:text-red-500 border border-violet-500/20 hover:border-red-500 shadow-lg shadow-violet-500/10'
+                            : 'bg-black/60 hover:bg-violet-600 hover:text-white text-gray-300 shadow-lg'
                             } ${isInWatchlistState && !isAdded ? 'opacity-50 pointer-events-none' : ''}`}
                         disabled={isInWatchlistState && !isAdded}
                         title={isAdded ? 'Remove from library' : (isInWatchlistState ? 'Already in watchlist' : 'Add to library')}
