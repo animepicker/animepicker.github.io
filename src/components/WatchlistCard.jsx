@@ -64,7 +64,7 @@ export default function WatchlistCard({ item, onClick, onMoveToLibrary, onRemove
                 <div className="absolute inset-0 bg-gradient-to-t from-[#12121f] via-transparent to-transparent opacity-60" />
 
                 {/* Overlay Action Buttons */}
-                <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all z-10" onClick={(e) => e.stopPropagation()}>
+                <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-all z-10" onClick={(e) => e.stopPropagation()}>
                     <button
                         onClick={() => onMoveToLibrary(item)}
                         className="p-2 rounded-xl bg-black/60 hover:bg-violet-600 text-white shadow-lg transition-all"
