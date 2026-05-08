@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     LogOut, User, LayoutGrid, Sparkles, ArrowUp, ArrowDown, Plus, X,
     Play, Search, Info, Key, Download, Upload, RefreshCw, Heart, Trash2,
-    ChevronLeft, Check, Copy, ExternalLink, Loader2, Eye, EyeOff, ChevronDown, ChevronRight, Undo, Zap, Wind, Cloud, CloudOff, Database, Calendar, Terminal, Tag, Pencil
+    ChevronLeft, Check, Copy, ExternalLink, Loader2, Eye, EyeOff, ChevronDown, ChevronRight, Undo, Zap, Wind, Cloud, CloudOff, Database, Calendar, Terminal, Tag, Pencil, Save
 } from 'lucide-react';
 import AboutContent from './AboutContent';
 import { 
@@ -18,6 +18,7 @@ import {
 } from '../services/aiService';
 import { WATCH_PROVIDERS } from '../utils/watchProviders';
 import { resolveUserKey } from '../services/authService';
+
 
 // API Key Input Constants
 // Removed hardcoded DEFAULT_MODEL in favor of aiService.js constants
@@ -169,9 +170,10 @@ export default function UserMenuContent({
 
     // Custom Instructions State
     const [newInstruction, setNewInstruction] = useState('');
-    const [editingExcludedId, setEditingExcludedId] = useState(null);
-    const [editedExcludedTitle, setEditedExcludedTitle] = useState('');
-    const [editedExcludedReason, setEditedExcludedReason] = useState('');
+    const [editExcludedReason, setEditExcludedReason] = useState('');
+    const [itemToEdit, setItemToEdit] = useState(null);
+
+
     const [confirmConfig, setConfirmConfig] = useState(null); // { title, message, onConfirm, actionLabel, isDanger }
 
     const modelListRef = useRef(null);
@@ -424,23 +426,21 @@ export default function UserMenuContent({
     );
 
     const handleStartEditExcluded = (item) => {
-        setEditingExcludedId(item.id);
-        setEditedExcludedTitle(item.title);
-        setEditedExcludedReason(item.reason || '');
+        setItemToEdit(item);
+        setEditExcludedReason(item.reason || '');
+        setCurrentView('edit_excluded');
     };
 
-    const handleSaveEditExcluded = (id) => {
-        if (!editedExcludedTitle.trim()) return;
-        onUpdateExcludedItem(id, {
-            title: editedExcludedTitle,
-            reason: editedExcludedReason
+    const handleSaveEditExcludedSubmenu = () => {
+        if (!itemToEdit) return;
+        onUpdateExcludedItem(itemToEdit.id, {
+            reason: editExcludedReason
         });
-        setEditingExcludedId(null);
+        setCurrentView('excluded');
+        setItemToEdit(null);
     };
 
-    const handleCancelEditExcluded = () => {
-        setEditingExcludedId(null);
-    };
+
 
     // Render Content based on view
     const handleDeleteAll = () => {
@@ -1287,7 +1287,15 @@ export default function UserMenuContent({
                                                 <span className="text-xs font-bold uppercase tracking-wider">Clear All</span>
                                             </button>
                                             <button
-                                                onClick={onRestoreAll}
+                                                onClick={() => setConfirmConfig({
+                                                    title: "Restore All Items",
+                                                    message: "Move all excluded items back to their original lists?",
+                                                    actionLabel: "Restore All",
+                                                    onConfirm: () => {
+                                                        onRestoreAll();
+                                                        setConfirmConfig(null);
+                                                    }
+                                                })}
                                                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-600/10 hover:bg-violet-600/20 text-violet-400 border border-violet-500/20 group transition-all"
                                             >
                                                 <Undo size={14} className="group-hover:-rotate-45 transition-transform" />
@@ -1296,73 +1304,40 @@ export default function UserMenuContent({
                                         </div>
                                         <div className="space-y-3">
                                             {excludedItems.map(item => (
-                                                <div key={item.id} className="p-4 bg-white/5 border border-white/10 rounded-2xl group/item hover:border-white/20 transition-all">
-                                                    {editingExcludedId === item.id ? (
-                                                        <div className="space-y-3">
-                                                            <input
-                                                                type="text"
-                                                                value={editedExcludedTitle}
-                                                                onChange={(e) => setEditedExcludedTitle(e.target.value)}
-                                                                placeholder="Title"
-                                                                className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
-                                                                autoFocus
-                                                            />
-                                                            <input
-                                                                type="text"
-                                                                value={editedExcludedReason}
-                                                                onChange={(e) => setEditedExcludedReason(e.target.value)}
-                                                                placeholder="Reason (optional)"
-                                                                className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
-                                                            />
-                                                            <div className="flex gap-2 pt-1">
-                                                                <button
-                                                                    onClick={() => handleSaveEditExcluded(item.id)}
-                                                                    className="flex-1 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-lg transition-all"
-                                                                >
-                                                                    Save
-                                                                </button>
-                                                                <button
-                                                                    onClick={handleCancelEditExcluded}
-                                                                    className="flex-1 py-1.5 bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-bold rounded-lg transition-all"
-                                                                >
-                                                                    Cancel
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex items-start gap-4">
+                                                <div key={item.id} className="p-3 bg-white/5 border border-white/10 rounded-xl group/item hover:border-white/20 transition-all">
+                                                        <div className="flex items-start gap-3">
                                                             <div className="flex-1 min-w-0 cursor-pointer group/data" onClick={() => handleStartEditExcluded(item)}>
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <div className="text-sm font-bold text-white truncate flex-1 leading-tight">
+                                                                <div className="flex items-center gap-2 mb-0.5">
+                                                                    <div className="text-sm font-bold text-white leading-tight">
                                                                         {item.title}
                                                                     </div>
                                                                     {item.year && (
-                                                                        <div className="shrink-0 flex items-center gap-1 text-[10px] font-black text-gray-400 bg-white/5 border border-white/5 rounded-md px-1.5 py-0.5">
-                                                                            <Calendar size={10} className="text-pink-500" />
+                                                                        <div className="shrink-0 flex items-center gap-1 text-[9px] font-black text-gray-500 bg-white/5 border border-white/5 rounded px-1 py-0.5">
                                                                             {item.year}
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                                <div className="flex items-start justify-between gap-3">
-                                                                    <div className="flex-1">
-                                                                        {item.reason ? (
-                                                                            <div className="text-xs text-gray-500 line-clamp-2 italic opacity-80">"{item.reason}"</div>
-                                                                        ) : (
-                                                                            <div className="text-[10px] text-gray-600 opacity-0 group-hover/data:opacity-100 transition-opacity italic">Click to add reason or edit</div>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter self-end ${item.source === 'library' ? 'bg-violet-500/20 text-violet-400' : item.source === 'watchlist' ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className={`shrink-0 px-1.5 py-0.5 rounded-[4px] text-[8px] font-black uppercase tracking-tighter ${item.source === 'library' ? 'bg-violet-500/20 text-violet-400' : item.source === 'watchlist' ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'}`}>
                                                                         {item.source}
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <div className="flex items-center gap-2 shrink-0 pt-1">
+                                                            <div className="flex items-center gap-0.5 shrink-0">
                                                                 <button
-                                                                    onClick={() => onRestore(item.id)}
-                                                                    className="p-2 text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-xl transition-all shadow-sm"
+                                                                    onClick={() => setConfirmConfig({
+                                                                        title: "Restore Item",
+                                                                        message: `Restore "${item.title}" to its original list?`,
+                                                                        actionLabel: "Restore",
+                                                                        onConfirm: () => {
+                                                                            onRestore(item.id);
+                                                                            setConfirmConfig(null);
+                                                                        }
+                                                                    })}
+                                                                    className="p-2 text-gray-500 hover:text-violet-400 hover:bg-violet-600/10 rounded-lg transition-all"
                                                                     title="Restore"
                                                                 >
-                                                                    <Undo size={16} />
+                                                                    <Undo size={14} />
                                                                 </button>
                                                                 <button
                                                                     onClick={() => setConfirmConfig({
@@ -1375,14 +1350,13 @@ export default function UserMenuContent({
                                                                             setConfirmConfig(null);
                                                                         }
                                                                     })}
-                                                                    className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all shadow-sm"
+                                                                    className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-600/10 rounded-lg transition-all"
                                                                     title="Permanently Clear"
                                                                 >
-                                                                    <Trash2 size={16} />
+                                                                    <Trash2 size={14} />
                                                                 </button>
                                                             </div>
                                                         </div>
-                                                    )}
                                                 </div>
                                             ))}
                                         </div>
@@ -1392,6 +1366,76 @@ export default function UserMenuContent({
                         </motion.div>
                     )
                 }
+
+                {
+                    currentView === 'edit_excluded' && (
+                        <motion.div
+                            key="edit_excluded"
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            variants={subViewVariants}
+                            className="flex flex-col h-full"
+                        >
+                            <MenuHeader title="Edit Reason" onBack={() => setCurrentView('excluded')} />
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                                <div className="space-y-8">
+                                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <div className="text-sm font-bold text-white leading-tight">
+                                                {itemToEdit?.title}
+                                            </div>
+                                            {itemToEdit?.year && (
+                                                <div className="shrink-0 flex items-center gap-1 text-[9px] font-black text-gray-500 bg-white/5 border border-white/5 rounded px-1 py-0.5">
+                                                    {itemToEdit.year}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className={`shrink-0 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${itemToEdit?.source === 'library' ? 'bg-violet-500/20 text-violet-400' : itemToEdit?.source === 'watchlist' ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                                {itemToEdit?.source}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-tighter ml-1">
+                                            Why was this excluded?
+                                        </label>
+                                        <textarea
+                                            value={editExcludedReason}
+                                            onChange={(e) => setEditExcludedReason(e.target.value)}
+                                            placeholder="Add a reason to help AI recommendations..."
+                                            rows={6}
+                                            className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50 transition-all resize-none"
+                                        />
+                                        <div className="flex justify-between items-center px-1">
+                                            <p className="text-[10px] text-gray-600 italic">
+                                                This reason is used by the AI to better understand your taste.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3 mt-4">
+                                        <button
+                                            onClick={() => setCurrentView('excluded')}
+                                            className="flex-1 py-2.5 rounded-xl text-xs font-bold text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleSaveEditExcludedSubmenu}
+                                            className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-violet-600 text-white shadow-lg shadow-violet-900/20 hover:bg-violet-500 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
+                                        >
+                                            Save Changes
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )
+                }
+
 
                 {
                     currentView === 'instructions' && (
@@ -2223,5 +2267,7 @@ export default function UserMenuContent({
                 }
             </AnimatePresence>
         </>
+
+
     );
 }
