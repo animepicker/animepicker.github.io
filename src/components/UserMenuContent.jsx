@@ -361,7 +361,7 @@ export default function UserMenuContent({
     });
 
     const MenuHeader = ({ title, showBack = true, onBack }) => (
-        <div className="sticky top-0 z-20 bg-[#1a1a2e]/80 backdrop-blur-xl border-b border-white/5 p-4 flex items-center gap-3">
+        <div className="sticky top-0 z-20 bg-[#1a1a2e]/80 border-b border-white/5 p-4 flex items-center gap-3">
             {showBack ? (
                 <button
                     onClick={onBack || (() => setCurrentView('main'))}
@@ -1072,7 +1072,7 @@ export default function UserMenuContent({
                             </div>
 
                             {/* Sticky Action Bar */}
-                            <div className="p-4 bg-white/[0.03] backdrop-blur-xl border-t border-white/10">
+                            <div className="p-4 bg-white/[0.03] border-t border-white/10">
                                 <button
                                     onClick={() => {
                                         setEditingProvider({ id: '', name: '', baseUrl: '', apiKey: '', model: '' });
@@ -1225,7 +1225,7 @@ export default function UserMenuContent({
                             </div>
 
                             {/* Sticky Action Bar */}
-                            <div className="p-4 bg-white/[0.03] backdrop-blur-xl border-t border-white/10 flex gap-2">
+                            <div className="p-4 bg-white/[0.03] border-t border-white/10 flex gap-2">
                                 <button
                                     onClick={() => setCurrentView('api_providers')}
                                     className="flex-1 py-2.5 rounded-xl text-xs font-bold text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all"
@@ -1367,7 +1367,7 @@ export default function UserMenuContent({
 
                             {/* Global Action Bar */}
                             {excludedItems.length > 0 && (
-                                <div className="p-4 bg-white/[0.03] backdrop-blur-xl border-t border-white/10 flex gap-2">
+                                <div className="p-4 bg-white/[0.03] border-t border-white/10 flex gap-2">
                                     <button
                                         onClick={() => setConfirmConfig({
                                             title: "Clear All Excluded Content?",
@@ -1492,7 +1492,7 @@ export default function UserMenuContent({
                             </div>
 
                             {/* Sticky Action Bar */}
-                            <div className="p-4 bg-white/[0.03] backdrop-blur-xl border-t border-white/10 flex gap-2">
+                            <div className="p-4 bg-white/[0.03] border-t border-white/10 flex gap-2">
                                 <button
                                     onClick={() => setCurrentView('excluded')}
                                     className="flex-1 py-2.5 rounded-xl text-xs font-bold text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all"
@@ -1574,7 +1574,7 @@ export default function UserMenuContent({
                             </div>
 
                             {/* Global Action Bar */}
-                            <div className="p-4 bg-white/[0.03] backdrop-blur-xl border-t border-white/10 flex flex-col gap-3">
+                            <div className="p-4 bg-white/[0.03] border-t border-white/10 flex flex-col gap-3">
                                 <button
                                     onClick={() => {
                                         setInstructionToEdit({ index: null, value: '' });
@@ -1650,7 +1650,7 @@ export default function UserMenuContent({
                             </div>
 
                             {/* Sticky Action Bar */}
-                            <div className="p-4 bg-white/[0.03] backdrop-blur-xl border-t border-white/10 flex gap-2">
+                            <div className="p-4 bg-white/[0.03] border-t border-white/10 flex gap-2">
                                 <button
                                     onClick={() => setCurrentView('instructions')}
                                     className="flex-1 py-2.5 rounded-xl text-xs font-bold text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all"

@@ -19,21 +19,25 @@
   --blur-amount: 0px !important;
 }
 
+/* Global fallback for all glass elements when blur is disabled */
 .disable-blur .glass-panel,
-.disable-blur .glass-header,
 .disable-blur [class*="backdrop-blur"] {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-}
-
-/* Targeted visibility for critical elements when blur is disabled */
-.disable-blur .glass-vibrancy-border {
-  border-color: rgba(255, 255, 255, 0.12) !important;
-}
-
-.disable-blur .glass-vibrancy-smoked {
   background-color: rgba(0, 0, 0, 0.5) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: none !important;
+  --tw-ring-width: 0px !important;
 }
+
+/* Exception class to preserve original background (e.g. for the top navigation bar) */
+.disable-blur .glass-vibrancy-preserve-bg {
+  background-color: rgba(26, 26, 46, 1) !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+
+
 
 
 
