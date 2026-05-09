@@ -64,7 +64,7 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
                     {onMoveToWatchlist && (
                         <button
                             onClick={() => onMoveToWatchlist(animeData)}
-                            className="p-2 rounded-lg bg-black/60 hover:bg-rose-500 text-white transition-colors"
+                            className="p-2 rounded-lg glass-panel hover:bg-rose-500 text-white transition-colors"
                             title="Move to watchlist"
                         >
                             <Heart size={14} />
@@ -72,7 +72,7 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
                     )}
                     <button
                         onClick={() => onGenerateRecommendation(animeData)}
-                        className={`p-2 rounded-lg bg-black/60 hover:bg-amber-500 text-white transition-colors ${isGeneratingRec ? 'animate-pulse' : ''}`}
+                        className={`p-2 rounded-lg glass-panel hover:bg-amber-500 text-white transition-colors ${isGeneratingRec ? 'animate-pulse' : ''}`}
                         title="Generate recommendations from this item"
                         disabled={isGeneratingRec}
                     >
@@ -80,7 +80,7 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
                     </button>
                     <button
                         onClick={() => onExclude(animeData)}
-                        className="p-2 rounded-lg bg-black/60 hover:bg-gray-500 text-white transition-colors"
+                        className="p-2 rounded-lg glass-panel hover:bg-gray-500 text-white transition-colors"
                         title="Exclude from recommendations"
                     >
                         <EyeOff size={14} />
@@ -89,14 +89,14 @@ const AnimeCard = memo(function AnimeCard({ animeData, isLoading, hasInfo, isExp
                     <button
                         onClick={() => onOpenRefreshModal(animeData, 'library')}
                         disabled={isLoading}
-                        className="p-2 rounded-lg bg-black/60 hover:bg-violet-600 text-white transition-colors disabled:opacity-50"
+                        className="p-2 rounded-lg glass-panel hover:bg-violet-600 text-white transition-colors disabled:opacity-50"
                         title="Regenerate info"
                     >
                         <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
                     </button>
                     <button
                         onClick={() => onRemove(animeData.id, animeData.title)}
-                        className="p-2 rounded-lg bg-black/60 hover:bg-red-500 text-white transition-colors"
+                        className="p-2 rounded-lg glass-panel hover:bg-red-500 text-white transition-colors"
                         title="Remove from library"
                     >
                         <X size={14} />

@@ -3567,7 +3567,7 @@ function App() {
                         {/* Tab Navigation - FIXED */}
                         {/* Tab Navigation - FIXED */}
                         {/* Tab Navigation - FIXED */}
-                        <div ref={tabsRef} className={`fixed top-20 left-1/2 -translate-x-1/2 z-40 flex gap-1 bg-[#1a1a2e]/90 p-1.5 rounded-2xl backdrop-blur-xl border border-white/10 shadow-2xl ${performanceSettings.enhancedMotion ? 'transition-all duration-300' : ''} max-w-[90vw] glass-vibrancy-preserve-bg`}>
+                        <div ref={tabsRef} className={`fixed top-20 left-1/2 -translate-x-1/2 z-40 flex gap-1 p-1.5 rounded-2xl glass-panel border border-white/10 shadow-2xl ${performanceSettings.enhancedMotion ? 'transition-all duration-300' : ''} max-w-[90vw] glass-vibrancy-preserve-bg`}>
                             <button
                                 onClick={() => handleTabSwitch('recommendations')}
                                 className={`relative flex items-center justify-center gap-0 px-4 py-2.5 rounded-lg text-sm font-medium z-0 ${performanceSettings.enhancedMotion ? 'transition-all' : ''} ${activeTab === 'recommendations'
@@ -3883,7 +3883,7 @@ function App() {
                             duration: 0.4,
                             ease: 'easeOut'
                         }}
-                        className="fixed bottom-6 left-1/2 z-50 glass-panel border border-white/10 shadow-2xl rounded-2xl flex items-center justify-center gap-1 p-1.5 w-auto"
+                        className="fixed bottom-6 left-1/2 z-50 glass-panel glass-vibrancy-preserve-bg border border-white/10 shadow-2xl rounded-2xl flex items-center justify-center gap-1 p-1.5 w-auto"
                     >
                         <button
                             onClick={() => {

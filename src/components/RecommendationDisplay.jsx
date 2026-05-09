@@ -76,9 +76,9 @@ const RecommendationCard = memo(({ rec, index, onWatched, onRemove, onRemovePick
                                 }
                             }}
                             className={`p-2 rounded-xl transition-all group/btn ${isInWatchlistState
-                                ? 'bg-rose-600/20 text-rose-400 hover:bg-white hover:text-red-500 border border-rose-500/20 hover:border-red-500 shadow-lg shadow-rose-500/10'
-                                : 'bg-black/60 hover:bg-rose-600 hover:text-white text-gray-300 shadow-lg'
-                                } ${isAdded ? 'opacity-50 pointer-events-none' : ''}`}
+                                ? 'bg-rose-600/60 backdrop-blur-md text-rose-100 hover:bg-white hover:text-red-500 border border-rose-500/20 hover:border-red-500 shadow-lg shadow-rose-500/10'
+                                : 'glass-panel hover:bg-rose-600 text-gray-300 shadow-lg'
+                                } ${isAdded ? 'text-gray-400 scale-95 grayscale pointer-events-none' : ''}`}
                             disabled={isAdded}
                             title={isAdded ? 'Already in library' : (isInWatchlistState ? 'Remove from watchlist' : 'Add to watchlist')}
                         >
@@ -95,9 +95,9 @@ const RecommendationCard = memo(({ rec, index, onWatched, onRemove, onRemovePick
                     <button
                         onClick={() => isAdded ? onRemove(null, rec.title, false) : onWatched({ ...rec, image: image || rec.image })}
                         className={`p-2 rounded-xl transition-all group/btn ${isAdded
-                            ? 'bg-violet-600/20 text-violet-400 hover:bg-white hover:text-red-500 border border-violet-500/20 hover:border-red-500 shadow-lg shadow-violet-500/10'
-                            : 'bg-black/60 hover:bg-violet-600 hover:text-white text-gray-300 shadow-lg'
-                            } ${isInWatchlistState && !isAdded ? 'opacity-50 pointer-events-none' : ''}`}
+                            ? 'bg-violet-600/60 backdrop-blur-md text-violet-100 hover:bg-white hover:text-red-500 border border-violet-500/20 hover:border-red-500 shadow-lg shadow-violet-500/10'
+                            : 'glass-panel hover:bg-violet-600 text-gray-300 shadow-lg'
+                            } ${isInWatchlistState && !isAdded ? 'text-gray-400 scale-95 grayscale pointer-events-none' : ''}`}
                         disabled={isInWatchlistState && !isAdded}
                         title={isAdded ? 'Remove from library' : (isInWatchlistState ? 'Already in watchlist' : 'Add to library')}
                     >
@@ -115,7 +115,7 @@ const RecommendationCard = memo(({ rec, index, onWatched, onRemove, onRemovePick
                             e.stopPropagation();
                             onExclude(rec);
                         }}
-                        className="p-2 rounded-xl bg-black/60 hover:bg-gray-500 text-gray-300 hover:text-white shadow-lg transition-all"
+                        className="p-2 rounded-xl glass-panel hover:bg-gray-500 text-gray-300 hover:text-white shadow-lg transition-all"
                         title="Exclude from recommendations"
                     >
                         <EyeOff size={16} />
@@ -126,7 +126,7 @@ const RecommendationCard = memo(({ rec, index, onWatched, onRemove, onRemovePick
                                 e.stopPropagation();
                                 onRemovePick(rec);
                             }}
-                            className="p-2 rounded-xl bg-black/60 hover:bg-red-600 text-gray-300 hover:text-white shadow-lg transition-all"
+                            className="p-2 rounded-xl glass-panel hover:bg-red-600 text-gray-300 hover:text-white shadow-lg transition-all"
                             title="Remove from picks"
                         >
                             <X size={16} />
