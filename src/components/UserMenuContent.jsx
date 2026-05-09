@@ -1313,18 +1313,18 @@ export default function UserMenuContent({
                                                                         {item.title}
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex items-center gap-2">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    {item.year && (
+                                                                        <div className="shrink-0 flex items-center gap-1 text-[9px] font-black text-gray-500 bg-white/5 border border-white/5 rounded px-1.5 py-0.5">
+                                                                            {item.year}
+                                                                        </div>
+                                                                    )}
                                                                     <div className={`shrink-0 px-1.5 py-0.5 rounded-[4px] text-[8px] font-black uppercase tracking-tighter ${item.source === 'library' ? 'bg-violet-500/20 text-violet-400' : item.source === 'watchlist' ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'}`}>
                                                                         {item.source}
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <div className="flex items-center gap-1 shrink-0">
-                                                                {item.year && (
-                                                                    <div className="shrink-0 flex items-center gap-1 text-[9px] font-black text-gray-500 bg-white/5 border border-white/5 rounded px-1.5 py-0.5 mr-1">
-                                                                        {item.year}
-                                                                    </div>
-                                                                )}
+                                                            <div className="flex items-center gap-2 shrink-0">
                                                                 <button
                                                                     onClick={() => setConfirmConfig({
                                                                         title: "Restore Item",
@@ -1423,17 +1423,52 @@ export default function UserMenuContent({
                                             <div className="text-sm font-bold text-white leading-tight mb-0.5">
                                                 {itemToEdit?.title}
                                             </div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-1.5">
+                                                {itemToEdit?.year && (
+                                                    <div className="shrink-0 flex items-center gap-1 text-[9px] font-black text-gray-500 bg-white/5 border border-white/5 rounded px-1.5 py-0.5">
+                                                        {itemToEdit.year}
+                                                    </div>
+                                                )}
                                                 <div className={`shrink-0 px-1.5 py-0.5 rounded-[4px] text-[8px] font-black uppercase tracking-tighter ${itemToEdit?.source === 'library' ? 'bg-violet-500/20 text-violet-400' : itemToEdit?.source === 'watchlist' ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'}`}>
                                                     {itemToEdit?.source}
                                                 </div>
                                             </div>
                                         </div>
-                                        {itemToEdit?.year && (
-                                            <div className="shrink-0 flex items-center gap-1 text-[9px] font-black text-gray-500 bg-white/5 border border-white/5 rounded px-1.5 py-0.5">
-                                                {itemToEdit.year}
-                                            </div>
-                                        )}
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <button
+                                                onClick={() => setConfirmConfig({
+                                                    title: "Restore Item",
+                                                    message: `Restore "${itemToEdit?.title}" to its original list?`,
+                                                    actionLabel: "Restore",
+                                                    onConfirm: () => {
+                                                        onRestore(itemToEdit.id);
+                                                        setConfirmConfig(null);
+                                                        setCurrentView('excluded');
+                                                    }
+                                                })}
+                                                className="p-2 text-gray-500 hover:text-violet-400 hover:bg-violet-600/10 rounded-lg transition-all"
+                                                title="Restore"
+                                            >
+                                                <Undo size={14} />
+                                            </button>
+                                            <button
+                                                onClick={() => setConfirmConfig({
+                                                    title: "Confirm Removal",
+                                                    message: `Permanently remove "${itemToEdit?.title}" from your excluded list?`,
+                                                    actionLabel: "Clear Item",
+                                                    isDanger: true,
+                                                    onConfirm: () => {
+                                                        onClearExcludedItem(itemToEdit.id);
+                                                        setConfirmConfig(null);
+                                                        setCurrentView('excluded');
+                                                    }
+                                                })}
+                                                className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-600/10 rounded-lg transition-all"
+                                                title="Permanently Clear"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="space-y-3">
