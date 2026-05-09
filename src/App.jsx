@@ -3974,7 +3974,7 @@ function App() {
                             onMouseDown={() => setScrollTopPressed(true)}
                             onMouseUp={() => setScrollTopPressed(false)}
                             onMouseLeave={() => setScrollTopPressed(false)}
-                            className={`fixed bottom-36 right-5 z-40 p-3 text-white rounded-full shadow-lg backdrop-blur-md transition-all duration-100 border border-white/20 focus:outline-none ${scrollTopPressed ? 'bg-violet-500 scale-95' : 'bg-violet-600/90'} ${showScrollTop && !isModalOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
+                            className={`fixed bottom-36 right-5 z-40 p-3 text-white rounded-full shadow-lg transition-all duration-100 border border-white/20 focus:outline-none ${scrollTopPressed ? 'bg-violet-500 scale-95' : 'bg-violet-600'} ${showScrollTop && !isModalOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
                             title="Back to Top"
                         >
                             <ArrowUp size={20} />
@@ -3988,7 +3988,7 @@ function App() {
                             onMouseDown={() => setScrollBottomPressed(true)}
                             onMouseUp={() => setScrollBottomPressed(false)}
                             onMouseLeave={() => setScrollBottomPressed(false)}
-                            className={`fixed bottom-24 right-5 z-40 p-3 text-white rounded-full shadow-lg backdrop-blur-md transition-all duration-100 border border-white/20 focus:outline-none ${scrollBottomPressed ? 'bg-violet-500 scale-95' : 'bg-violet-600/90'} ${showScrollBottom && !isModalOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
+                            className={`fixed bottom-24 right-5 z-40 p-3 text-white rounded-full shadow-lg transition-all duration-100 border border-white/20 focus:outline-none ${scrollBottomPressed ? 'bg-violet-500 scale-95' : 'bg-violet-600'} ${showScrollBottom && !isModalOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
                             title="Scroll to Bottom"
                         >
                             <ArrowDown size={20} />
