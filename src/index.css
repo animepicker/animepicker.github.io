@@ -26,6 +26,24 @@
   -webkit-backdrop-filter: none !important;
 }
 
+/* Targeted visibility for critical elements when blur is disabled */
+.disable-blur .glass-vibrancy-border {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.disable-blur .glass-vibrancy-smoked {
+  background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+
+
+
+
+
+
+
+
+
 
 @media (max-width: 768px) {
   :root {

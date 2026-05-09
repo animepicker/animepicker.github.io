@@ -3158,7 +3158,7 @@ function App() {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setShowUserMenu(true)}
-                        className="flex items-center justify-center sm:justify-start gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/30 rounded-full w-10 sm:w-auto sm:px-4 h-10 text-sm text-gray-300 hover:text-white transition-all backdrop-blur-md shadow-lg"
+                        className="flex items-center justify-center sm:justify-start gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/30 rounded-full w-10 sm:w-auto sm:px-4 h-10 text-sm text-gray-300 hover:text-white transition-all backdrop-blur-md shadow-lg glass-vibrancy-border glass-vibrancy-smoked"
                     >
                         <div className="shrink-0">
                             {currentUser.isGoogle && currentUser.profile?.picture ? (
@@ -3381,7 +3381,7 @@ function App() {
                         onClick={() => {
                             setShowSearchModal(true);
                         }}
-                        className="flex items-center justify-center sm:justify-start gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/30 rounded-full w-10 sm:w-auto sm:px-4 h-10 text-sm text-gray-300 hover:text-white transition-all backdrop-blur-md shadow-lg"
+                        className="flex items-center justify-center sm:justify-start gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/30 rounded-full w-10 sm:w-auto sm:px-4 h-10 text-sm text-gray-300 hover:text-white transition-all backdrop-blur-md shadow-lg glass-vibrancy-border glass-vibrancy-smoked"
                     >
                         <Search size={16} />
                         <span className="hidden sm:inline">Search</span>
@@ -3567,7 +3567,7 @@ function App() {
                         {/* Tab Navigation - FIXED */}
                         {/* Tab Navigation - FIXED */}
                         {/* Tab Navigation - FIXED */}
-                        <div ref={tabsRef} className={`fixed top-20 left-1/2 -translate-x-1/2 z-40 flex gap-1 bg-[#1a1a2e]/90 p-1.5 rounded-2xl backdrop-blur-xl border border-white/10 shadow-2xl ${performanceSettings.enhancedMotion ? 'transition-all duration-300' : ''} ring-1 ring-white/5 max-w-[90vw]`}>
+                        <div ref={tabsRef} className={`fixed top-20 left-1/2 -translate-x-1/2 z-40 flex gap-1 bg-[#1a1a2e]/90 p-1.5 rounded-2xl backdrop-blur-xl border border-white/10 shadow-2xl ${performanceSettings.enhancedMotion ? 'transition-all duration-300' : ''} max-w-[90vw] glass-vibrancy-border`}>
                             <button
                                 onClick={() => handleTabSwitch('recommendations')}
                                 className={`relative flex items-center justify-center gap-0 px-4 py-2.5 rounded-lg text-sm font-medium z-0 ${performanceSettings.enhancedMotion ? 'transition-all' : ''} ${activeTab === 'recommendations'
@@ -3883,7 +3883,7 @@ function App() {
                             duration: 0.4,
                             ease: 'easeOut'
                         }}
-                        className="fixed bottom-6 left-1/2 z-50 glass-panel border border-white/10 shadow-2xl rounded-2xl flex items-center justify-center gap-1 p-1.5 ring-1 ring-white/5 w-auto"
+                        className="fixed bottom-6 left-1/2 z-50 glass-panel border border-white/10 shadow-2xl rounded-2xl flex items-center justify-center gap-1 p-1.5 w-auto glass-vibrancy-border glass-vibrancy-smoked"
                     >
                         <button
                             onClick={() => {
